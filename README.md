@@ -18,7 +18,7 @@ machine with your own copy of TibiaData.
 | Mass log | Alert in ⚔️ enemies when 5+ enemies log in within 5 minutes, as soon as tibia.com shows it (`MASSLOG_*` in `.env`) |
 | 📊 statistics, `/bosses` | Which rare bosses are due today, from daily kill statistics |
 | `/split` | Paste the party hunt analyser, get the transfer commands |
-| `/privatehunt` | Pick a party: private voice channel, party moved in, gone when empty |
+| `/privateroom` | Pick a party: private voice channel, party moved in, gone when empty |
 | `/watchdog` | A [TibiaCardinal Watchdog](https://tibiacardinal.com/watchdog) room link for a party |
 | `/settings`, `/clear`, `/repair`, `/remove` | Filters and pings, emptying channels, maintenance |
 

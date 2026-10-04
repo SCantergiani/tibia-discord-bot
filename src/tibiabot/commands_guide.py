@@ -15,7 +15,7 @@ SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
                       "`transfer` commands."),
         ("bosses", "Which rare bosses are due to spawn today on your worlds, from daily kill statistics."),
         ("watchdog", "Post a TibiaCardinal Watchdog room link for your party. Optional `name`."),
-        ("privatehunt", "Pick your party: the bot makes a private voice channel, moves everyone in voice into "
+        ("privateroom", "Pick your party: the bot makes a private voice channel, moves everyone in voice into "
                         "it, and deletes it once everyone has left. You must be in voice first."),
     ]),
     ("Moderators (Manage Server or the Popaco Bot Moderator role)", [
@@ -29,7 +29,7 @@ SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         ("remove", "Stop tracking a world and delete everything `/init` made for it."),
         ("settings", "Fullbless level, exiva lists, level filters for channels and the online list, neutrals, "
                      "mass log alerts, the command log channel, and the member role (only that role sees my channels "
-                     "and private hunts)."),
+                     "and private rooms)."),
         ("clear", "Empty a world's deaths and/or levels channel (asks first)."),
     ]),
 ]

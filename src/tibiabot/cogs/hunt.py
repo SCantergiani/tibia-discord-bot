@@ -1,4 +1,4 @@
-"""`/privatehunt`: a private voice channel for one party.
+"""`/privateroom`: a private voice channel for one party.
 
 The form picks the party; the bot creates a voice channel only they can see and
 moves the starter and everyone else already in voice into it (nothing is
@@ -87,13 +87,13 @@ class HuntForm(discord.ui.Modal, title="Start a hunt"):
         missing = missing_permissions(guild.me.guild_permissions)
         if missing:
             await interaction.followup.send(embed=embeds.error(
-                "I need these server permissions for private hunts: " + ", ".join(f"**{m}**" for m in missing)
+                "I need these server permissions for private rooms: " + ", ".join(f"**{m}**" for m in missing)
                 + ".\nServer Settings → Roles → my role."), ephemeral=True)
             return
         starter = guild.get_member(interaction.user.id)
         if starter is None or starter.voice is None or starter.voice.channel is None:
             await interaction.followup.send(embed=embeds.error(
-                "Join a voice channel first, then run `/privatehunt`: I move the party from voice into the hunt."),
+                "Join a voice channel first, then run `/privateroom`: I move the party from voice into the hunt."),
                 ephemeral=True)
             return
 
@@ -107,14 +107,14 @@ class HuntForm(discord.ui.Modal, title="Start a hunt"):
         try:
             channel = await guild.create_voice_channel(channel_name(name), category=category,
                                                        overwrites=party_overwrites(guild, members, viewers),
-                                                       reason=f"/privatehunt by {interaction.user}")
+                                                       reason=f"/privateroom by {interaction.user}")
         except discord.HTTPException as e:
             await interaction.followup.send(embed=embeds.error(f"I couldn't create the hunt channel: {e.text}"),
                                             ephemeral=True)
             return
         cog.track(channel)
         try:
-            await starter.move_to(channel, reason="/privatehunt")
+            await starter.move_to(channel, reason="/privateroom")
         except discord.HTTPException as e:
             await cog.delete(channel, "the starter couldn't be moved in")
             await interaction.followup.send(embed=embeds.error(
@@ -130,7 +130,7 @@ class HuntForm(discord.ui.Modal, title="Start a hunt"):
                 not_in_voice.append(member)
                 continue
             try:
-                await current.move_to(channel, reason="/privatehunt")
+                await current.move_to(channel, reason="/privateroom")
                 moved.append(member)
             except discord.HTTPException:
                 failed.append(member)
@@ -240,7 +240,7 @@ class HuntCog(commands.Cog):
                     if not channel.members:
                         self._delete_later(channel, EMPTY_GRACE, "empty after a restart")
 
-    @app_commands.command(name="privatehunt", description="Start a hunt: a private voice channel for your party")
+    @app_commands.command(name="privateroom", description="A private voice channel for your party")
     @app_commands.guild_only()
     async def hunt(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(HuntForm(interaction.user))

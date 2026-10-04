@@ -145,7 +145,7 @@ class SettingsForm(discord.ui.Modal):
             self.role = discord.ui.RoleSelect(custom_id="role", min_values=0, max_values=1, required=False,
                                               placeholder="Everyone (no member role)")
             self.add_item(discord.ui.Label(text="Your guild members' role", component=self.role,
-                                           description="Only this role sees my channels and private hunts. "
+                                           description="Only this role sees my channels and private rooms. "
                                                        "Leave empty: everyone sees them."))
         elif action == COMMAND_LOG:
             self.channel = discord.ui.ChannelSelect(custom_id="channel", channel_types=[discord.ChannelType.text],
@@ -246,8 +246,8 @@ class SettingsForm(discord.ui.Modal):
                             f"{adminlog.user(interaction.user.name)} set the member role to {shown}.",
                             SETTINGS_THUMBNAIL)
         text = (f"My channels are now visible to {shown} only (the command log stays admin-only), and new "
-                f"`/privatehunt` channels can be seen by them; only the party can join."
-                if role else "My channels are visible to everyone again; private hunts are party-only.")
+                f"`/privateroom` channels can be seen by them; only the party can join."
+                if role else "My channels are visible to everyone again; private rooms are party-only.")
         if failed:
             text += (f"\n\n{emojis.get('no')} Discord refused changing: {', '.join(failed)}. Check my role has "
                      "**Manage Roles** and sits above that role.")

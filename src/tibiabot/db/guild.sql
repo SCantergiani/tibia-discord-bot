@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS discord_info (
   PRIMARY KEY (guild_name)
 );
 -- Python-only addition: the server's member role, the only role that can see the bot's
--- channels and /privatehunt channels ('0' = everyone sees the channels, hunts are party-only).
+-- channels and /privateroom channels ('0' = everyone sees the channels, hunts are party-only).
 -- It started out as hunt_role (hunts only); rename it where that is what exists.
 DO $$
 BEGIN
