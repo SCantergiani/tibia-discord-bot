@@ -15,6 +15,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from tibiabot import embeds
+from tibiabot.commands_guide import COMMANDS_CHANNEL, ensure_guide, same_channel_name
 from tibiabot.db import repos
 from tibiabot.db.repos import NONE_ID, WorldConfig
 from tibiabot.cogs.settings import find_role_panel, post_role_panel
@@ -104,7 +105,7 @@ class SetupCog(commands.Cog):
     async def _text_channel(guild: discord.Guild, category: discord.CategoryChannel, name: str,
                             overwrites) -> tuple[discord.TextChannel, bool]:
         """(channel, created). Reuses a channel of this name already in the category."""
-        existing = discord.utils.get(category.text_channels, name=name)
+        existing = next((c for c in category.text_channels if same_channel_name(c.name, name)), None)
         if existing:
             return existing, False
         return await guild.create_text_channel(name, category=category, overwrites=overwrites), True
@@ -134,6 +135,7 @@ class SetupCog(commands.Cog):
                 guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, embed_links=True),
                 guild.default_role: discord.PermissionOverwrite(view_channel=True, send_messages=False),
             })
+        await ensure_guide(guild, category)
         owner = guild.owner.display_name if guild.owner else "Not Available"
         if info is None:
             info = repos.new_discord_info(guild.name, owner, str(category.id), str(admin.id), str(notes.id))
@@ -178,6 +180,14 @@ class SetupCog(commands.Cog):
         info = await repos.get_discord_info(pool)
         if info is None:
             return
+        category = guild.get_channel(int(info.admin_category)) if info.admin_category.isdigit() else None
+        guide = next((c for c in getattr(category, "text_channels", [])
+                      if same_channel_name(c.name, COMMANDS_CHANNEL)), None)
+        if guide:
+            try:
+                await guide.delete(reason="last world removed")
+            except discord.HTTPException as e:
+                log.warning("Could not delete the commands channel in %s: %s", guild.id, e)
         for channel_id in (info.boosted_channel, info.admin_channel, info.admin_category):
             channel = guild.get_channel(int(channel_id)) if channel_id.isdigit() else None
             if channel:

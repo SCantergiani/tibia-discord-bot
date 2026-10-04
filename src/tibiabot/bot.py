@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands
 
 from tibiabot import emojis
+from tibiabot.commands_guide import ensure_guide
 from tibiabot.config import Settings
 from tibiabot.db import repos
 from tibiabot.db.database import Database
@@ -124,6 +125,7 @@ class TibiaBot(commands.Bot):
         await self._load_guilds()
         if not self.settings.dev_guild_id.isdigit():
             await self._clear_dev_commands()
+        await self._refresh_guides()
         await self.pollers.sync(self.state.tracked_worlds())
         self._background.append(asyncio.create_task(self._every(LIST_REVIEW_INTERVAL, self.lists.review_sweep),
                                                     name="list-review"))
@@ -139,6 +141,17 @@ class TibiaBot(commands.Bot):
         if deaths_cog:
             self._background.append(asyncio.create_task(self._every(CACHE_PRUNE_INTERVAL, deaths_cog.prune),
                                                         name="death-cache-prune"))
+
+    async def _refresh_guides(self) -> None:
+        """Bring every server's 📖 commands channel up to date with this version's commands."""
+        for guild in self.guilds:
+            info = self.state.guild(guild.id).info
+            category = guild.get_channel(int(info.admin_category)) if info and info.admin_category.isdigit() else None
+            if isinstance(category, discord.CategoryChannel):
+                try:
+                    await ensure_guide(guild, category)
+                except discord.HTTPException as e:
+                    log.warning("Could not update the commands channel in %s: %s", guild.name, e)
 
     async def _clear_dev_commands(self) -> None:
         """With global commands, drop any server-only copies left from testing with
