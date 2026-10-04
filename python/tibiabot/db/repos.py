@@ -116,6 +116,22 @@ async def save_world(pool: asyncpg.Pool, world: WorldConfig) -> None:
         *(getattr(world, c) for c in WORLD_COLUMNS))
 
 
+# Per-world settings the panels may change, and the type each one holds.
+SETTING_COLUMNS: dict[str, type] = {
+    "show_neutral_levels": str, "show_neutral_deaths": str, "show_allies_levels": str, "show_allies_deaths": str,
+    "show_enemies_levels": str, "show_enemies_deaths": str, "detect_hunteds": str, "exiva_list": str,
+    "online_combined": str, "fullbless_level": int, "levels_min": int, "deaths_min": int,
+    "online_allies_min": int, "online_enemies_min": int, "online_neutrals_min": int,
+}
+
+
+async def update_world_setting(pool: asyncpg.Pool, world: str, column: str, value: str | int) -> None:
+    kind = SETTING_COLUMNS.get(column)
+    if kind is None or not isinstance(value, kind):
+        raise ValueError(f"not a world setting: {column}={value!r}")
+    await pool.execute(f"UPDATE worlds SET {column} = $1 WHERE name = $2", value, world)
+
+
 async def update_world_column(pool: asyncpg.Pool, world: str, column: str, value: str) -> None:
     if column not in REPAIRABLE_COLUMNS:
         raise ValueError(f"not a repairable column: {column}")

@@ -45,8 +45,8 @@ Each phase ends runnable, with its ported specs green.
 |---|---|---|---|
 | 0 ✅ | Skeleton: config, DB init, TibiaData client with 300s character age cache, world poll loop, `/setup`, `/repair`, guild/world state | `Config`, `SchemaInitializer`, `tibiadata/*`, `setup/ChannelService`, `state/StreamState` | ~1500 |
 | 1 ✅ | Loot split: `/lootsplit`, modal, settlement embed | `lootsplit/*`, `interactions/LootSplit`, `LootSplitEmbeds` | ~520 |
-| 2 | Hunted/allies lists: panels, add/remove/clear, guild membership matching, traded flagging | `hunted/*`, `panels/*`, `PanelButtons`, `PanelModals` | ~1500 |
-| 3 | Deaths + levels: 60s poll, death detection, embeds/colours/pings, frags, screenshot button, auto-hunted, level posts | `TibiaBot.scala` scan/post stages, `Killers`, `DeathEmbeds`, `LevelTracker`, `LevelVisibility` | ~850 |
+| 2 ✅ | Hunted/allies lists: panels, add/remove/clear, tags, traded/moved/deleted flagging and review sweep | `hunted/*`, `panels/*`, `PanelButtons`, `PanelModals` | ~1500 |
+| 3 | Deaths + levels + `/settings` (the filters it sets): 60s poll, death detection, embeds/colours/pings, frags, screenshot button, auto-hunted, level posts | `TibiaBot.scala` scan/post stages, `Killers`, `DeathEmbeds`, `LevelTracker`, `LevelVisibility` | ~850 |
 | 4 | Online lists: roster, grouping, edit-in-place packing, channel/category rename with cooldown | `OnlineTracker`, `OnlineListEmbeds`, `OnlineListState`, `OnlineListGrouping` | ~900 |
 | 5 | Boss predictions: daily killstatistics fetch, predictor, statistics post | `statistics/*`, `KillStatisticsSchedule`, `ServerSaveSchedule` | ~600 |
 | 6 | Respawn **web board only**: Discord OAuth, all `/dashboard` routes `board.html` calls, claims/queue/bookings/stamina, expiry sweep, sprite cache | `web/DiscordAuth`, `web/RespawnDashboardRoute`, `respawn/RespawnService`, `RespawnCatalogue` | ~3500 |
@@ -66,6 +66,10 @@ on top of the same service layer.
 - `/setup` no longer creates the activity channel, mass-log/bounty roles, Galthen/boosted posts or the
   respawn forum (not ported); their columns hold `0`.
 - Slash commands go to `DEV_GUILD_ID` instantly while testing; unset, they register globally.
+
+- The bot is named **Popaco Bot** (category "Popaco Bot", role "Popaco Bot Moderator"); `/setup` and
+  `/repair` rename a server's existing "Violent Bot" category and moderator role in place.
+- `/settings` moved from Phase 2 to Phase 3, alongside the death/level/online filters it controls.
 
 ## Security carry-over
 

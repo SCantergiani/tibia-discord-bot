@@ -23,14 +23,14 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-ADMIN_CATEGORY = "Violent Bot"
+ADMIN_CATEGORY = "Popaco Bot"
 COMMAND_LOG = "🖥️・ᴄᴏᴍᴍᴀɴᴅ ʟᴏɢ"
 NOTIFICATIONS = "👑・ɴᴏᴛɪғɪᴄᴀᴛɪᴏɴs"
 ONLINE = "📈・ᴏɴʟɪɴᴇ"
 DEATHS = "💀・ᴅᴇᴀᴛʜs"
 LEVELS = "💖・ʟᴇᴠᴇʟs"
 STATISTICS = "📊・sᴛᴀᴛɪsᴛɪᴄs"
-MODERATOR_ROLE = "Violent Bot Moderator"
+MODERATOR_ROLE = "Popaco Bot Moderator"
 
 # (worlds column, role name suffix, colour)
 WORLD_ROLES = (
@@ -112,6 +112,9 @@ class SetupCog(commands.Cog):
                 guild.me: ADMIN_BOT_PERMS,
                 guild.default_role: discord.PermissionOverwrite(view_channel=True),
             })
+        elif category.name != ADMIN_CATEGORY:
+            # A server set up under the bot's old name keeps its category, renamed.
+            await category.edit(name=ADMIN_CATEGORY)
         admin = guild.get_channel(int(info.admin_channel)) if info and info.admin_channel.isdigit() else None
         if not isinstance(admin, discord.TextChannel):
             admin, _ = await self._text_channel(guild, category, COMMAND_LOG, {
@@ -135,7 +138,11 @@ class SetupCog(commands.Cog):
 
     async def _moderator_role(self, guild: discord.Guild, pool) -> None:
         try:
-            role = await self._role(guild, MODERATOR_ROLE, discord.Color.from_rgb(114, 137, 218))
+            info = await repos.get_discord_info(pool)
+            stored = guild.get_role(int(info.moderator_role)) if info and (info.moderator_role or "").isdigit() else None
+            if stored and stored.name != MODERATOR_ROLE:
+                await stored.edit(name=MODERATOR_ROLE)
+            role = stored or await self._role(guild, MODERATOR_ROLE, discord.Color.from_rgb(114, 137, 218))
             await repos.set_moderator_role(pool, str(role.id))
         except discord.HTTPException as e:
             log.warning("Could not create the moderator role in %s: %s", guild.id, e)

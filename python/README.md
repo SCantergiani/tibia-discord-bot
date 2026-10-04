@@ -34,9 +34,9 @@ your test server.
 
 ### 3. Try it
 
-- `/setup world: Antica` creates the **Violent Bot** category (command log and notifications), a
+- `/setup world: Antica` creates the **Popaco Bot** category (command log and notifications), a
   category for the world with online, deaths, levels and statistics channels, and the
-  `Antica Fullbless`, `Antica Rare Boss`, `Antica PVP` and `Violent Bot Moderator` roles.
+  `Antica Fullbless`, `Antica Rare Boss`, `Antica PVP` and `Popaco Bot Moderator` roles.
 - The console then logs one line per minute per tracked world:
   `Antica: 541 online, 541 sheets (541 cached), 3 recently offline`. Posting to the channels comes in
   later phases.
