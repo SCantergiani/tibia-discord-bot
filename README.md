@@ -44,11 +44,11 @@ You need Docker and [uv](https://docs.astral.sh/uv/).
 ### 2. Start it
 
 ```bash
-cp .env.example .env                                   # fill in TOKEN and DEV_GUILD_ID
-docker compose -f docker-compose.dev.yml up -d --wait  # Postgres on :5433, TibiaData on :8081
-uv sync
-uv run tibiabot
+cp .env.example .env    # fill in TOKEN (and DEV_GUILD_ID while testing)
+make                    # starts Postgres (:5433) and TibiaData (:8081) if needed, then the bot
 ```
+
+`make help` lists the rest: `make test`, `make down`, `make logs`, `make deploy`.
 
 Then `/init world: <your world>` in Discord.
 
@@ -68,8 +68,7 @@ Everything runs from one compose file on any machine with Docker:
 
 ```bash
 cp .env.example .env    # TOKEN, POSTGRES_PASSWORD; leave DEV_GUILD_ID empty for global commands
-docker compose up -d --build
-docker compose logs -f bot
+make deploy             # docker compose up -d --build, then follows the bot's logs
 ```
 
 Back up the `pgdata` volume: boss predictions need the kill history it accumulates.
@@ -91,8 +90,8 @@ online allies/enemies then caught within about a minute (dying logs you out) rat
 ## Tests
 
 ```bash
-uv run pytest                                                                               # unit tests
-POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 POSTGRES_PASSWORD=devpassword uv run pytest      # + database
+make test        # unit + database tests (starts the dev Postgres if needed)
+uv run pytest    # unit tests only
 ```
 
 ## License
