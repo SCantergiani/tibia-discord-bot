@@ -143,7 +143,7 @@ class SettingsForm(discord.ui.Modal):
         elif action == HUNT_ROLE:
             self.role = discord.ui.RoleSelect(custom_id="role", min_values=0, max_values=1, required=False,
                                               placeholder="Nobody but the party")
-            self.add_item(discord.ui.Label(text="Who can see /hunt channels", component=self.role,
+            self.add_item(discord.ui.Label(text="Who can see /privatehunt channels", component=self.role,
                                            description="Members with this role see hunts and who is in them; "
                                                        "only the party can join. Empty: hidden."))
         elif action == COMMAND_LOG:
@@ -236,7 +236,7 @@ class SettingsForm(discord.ui.Modal):
                             f"{adminlog.user(interaction.user.name)} set who can see hunts to {shown}.",
                             SETTINGS_THUMBNAIL)
         await interaction.followup.send(embed=embeds.ok(
-            f"New `/hunt` channels are visible to {shown}; only the party can join."), ephemeral=True)
+            f"New `/privatehunt` channels are visible to {shown}; only the party can join."), ephemeral=True)
 
     async def _masslog(self, bot: TibiaBot, interaction: discord.Interaction) -> None:
         state = bot.state.guild(interaction.guild_id)

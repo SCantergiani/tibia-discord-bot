@@ -1,4 +1,4 @@
-"""`/hunt`: a private voice channel for one party.
+"""`/privatehunt`: a private voice channel for one party.
 
 The form picks the party; the bot creates a voice channel only they can see,
 moves whoever is already in voice into it, pings the rest there, and deletes
@@ -82,7 +82,7 @@ class HuntForm(discord.ui.Modal, title="Start a hunt"):
         try:
             channel = await guild.create_voice_channel(channel_name(name), category=category,
                                                        overwrites=party_overwrites(guild, members, viewers),
-                                                       reason=f"/hunt by {interaction.user}")
+                                                       reason=f"/privatehunt by {interaction.user}")
         except discord.Forbidden:
             await interaction.followup.send(embed=embeds.error(
                 "I can't create channels here. Give me **Manage Channels**."), ephemeral=True)
@@ -99,7 +99,7 @@ class HuntForm(discord.ui.Modal, title="Start a hunt"):
                 failed.append(member)
             else:
                 try:
-                    await current.move_to(channel, reason="/hunt")
+                    await current.move_to(channel, reason="/privatehunt")
                     moved.append(member)
                 except discord.HTTPException:
                     failed.append(member)
@@ -214,7 +214,7 @@ class HuntCog(commands.Cog):
                     if not channel.members:
                         self._delete_later(channel, EMPTY_GRACE, "empty after a restart")
 
-    @app_commands.command(name="hunt", description="Start a hunt: a private voice channel for your party")
+    @app_commands.command(name="privatehunt", description="Start a hunt: a private voice channel for your party")
     @app_commands.guild_only()
     async def hunt(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(HuntForm(interaction.user))
