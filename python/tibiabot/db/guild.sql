@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS discord_info (
   moderator_role VARCHAR(255) DEFAULT '0',
   PRIMARY KEY (guild_name)
 );
+-- Python-only addition: the role that can see /hunt channels ('0' = nobody but the party).
+ALTER TABLE discord_info ADD COLUMN IF NOT EXISTS hunt_role VARCHAR(255) DEFAULT '0';
 
 CREATE TABLE IF NOT EXISTS hunted_players (
   name VARCHAR(255) NOT NULL,

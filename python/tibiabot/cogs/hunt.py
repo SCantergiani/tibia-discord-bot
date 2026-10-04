@@ -36,7 +36,9 @@ def channel_name(name: str | None) -> str:
     return f"{HUNT_PREFIX} – {cleaned}" if cleaned else HUNT_PREFIX
 
 
-def party_overwrites(guild: discord.Guild, party: list[discord.Member]) -> dict:
+def party_overwrites(guild: discord.Guild, party: list[discord.Member], viewers: discord.Role | None = None) -> dict:
+    """Only the party can join and talk; `viewers` (the role picked in /settings)
+    can see the channel and who is in it."""
     allowed = discord.PermissionOverwrite(view_channel=True, connect=True, speak=True, stream=True,
                                           send_messages=True, read_message_history=True, use_voice_activation=True)
     overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
@@ -44,6 +46,9 @@ def party_overwrites(guild: discord.Guild, party: list[discord.Member]) -> dict:
                   # allowing anything the bot doesn't hold itself.
                   guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True,
                                                         embed_links=True, read_message_history=True)}
+    if viewers is not None and viewers != guild.default_role:
+        overwrites[viewers] = discord.PermissionOverwrite(view_channel=True, read_message_history=True,
+                                                          connect=False)
     for member in party:
         overwrites[member] = allowed
     return overwrites
@@ -72,9 +77,11 @@ class HuntForm(discord.ui.Modal, title="Start a hunt"):
             members.insert(0, interaction.user)
         name = (self.hunt_name.value or "").strip() or None
         category = getattr(interaction.channel, "category", None)
+        info = bot.state.guild(guild.id).info
+        viewers = guild.get_role(int(info.hunt_role)) if info and (info.hunt_role or "").isdigit() else None
         try:
             channel = await guild.create_voice_channel(channel_name(name), category=category,
-                                                       overwrites=party_overwrites(guild, members),
+                                                       overwrites=party_overwrites(guild, members, viewers),
                                                        reason=f"/hunt by {interaction.user}")
         except discord.Forbidden:
             await interaction.followup.send(embed=embeds.error(

@@ -26,6 +26,7 @@ log = logging.getLogger(__name__)
 FULLBLESS, EXIVA, CHANNEL_FILTER, NEUTRAL, COMMAND_LOG = "fullbless", "exiva", "chanfilter", "neutral", "cmdlog"
 ONLINE_FILTER = "onlinefilter"
 MASSLOG = "masslog"
+HUNT_ROLE = "huntrole"
 MASSLOG_MODES = [("Ping the Masslog role", "role"), ("Ping everyone", "everyone"), ("Off", "off")]
 SHOW_HIDE = [("Show", "show"), ("Hide", "hide")]
 SETTINGS_THUMBNAIL = f"{embeds.WIKI_FILE}Armillary_Sphere_(TibiaMaps).gif"
@@ -43,7 +44,8 @@ def settings_view() -> discord.ui.View:
                                  (ONLINE_FILTER, "Online Filters", "📋"),
                                  (MASSLOG, "Mass Log", emojis.get("masslog") or "⚡"),
                                  (NEUTRAL, "Neutrals", "⚪"),
-                                 (COMMAND_LOG, "Command Log", "🖥️")):
+                                 (COMMAND_LOG, "Command Log", "🖥️"),
+                                 (HUNT_ROLE, "Hunt Visibility", "🏹")):
         view.add_item(SettingsButton(action, label=label, emoji=emoji))
     return view
 
@@ -90,7 +92,7 @@ def _show_hide(stored: str) -> str:
 class SettingsForm(discord.ui.Modal):
     TITLES = {FULLBLESS: "Fullbless level", EXIVA: "Exiva lists", CHANNEL_FILTER: "Channel level filters",
               NEUTRAL: "Neutral players", COMMAND_LOG: "Command log", ONLINE_FILTER: "Online list filters",
-              MASSLOG: "Mass log alert"}
+              MASSLOG: "Mass log alert", HUNT_ROLE: "Hunt visibility"}
 
     def __init__(self, action: str, worlds: list[WorldConfig]):
         super().__init__(title=self.TITLES[action], custom_id=f"settingsform:{action}", timeout=None)
@@ -98,7 +100,8 @@ class SettingsForm(discord.ui.Modal):
         only = worlds[0] if len(worlds) == 1 else None
         self.world = self.level = self.option = self.levels = self.deaths = self.channel = None
         self.online_inputs: dict[str, discord.ui.TextInput] = {}
-        if action != COMMAND_LOG and len(worlds) > 1:
+        self.role: discord.ui.RoleSelect | None = None
+        if action not in (COMMAND_LOG, HUNT_ROLE) and len(worlds) > 1:
             self.world = discord.ui.Select(custom_id="world", placeholder="Pick a world", required=True,
                                            options=[discord.SelectOption(label=w.name, value=w.name) for w in worlds])
             self.add_item(discord.ui.Label(text="Which world?", description="The world this setting applies to.",
@@ -137,6 +140,12 @@ class SettingsForm(discord.ui.Modal):
                 options=[discord.SelectOption(label=l, value=v, default=v == current) for l, v in MASSLOG_MODES])
             self.add_item(discord.ui.Label(text="When many enemies log in at once", component=self.option,
                                            description="Who the alert in the deaths channel pings."))
+        elif action == HUNT_ROLE:
+            self.role = discord.ui.RoleSelect(custom_id="role", min_values=0, max_values=1, required=False,
+                                              placeholder="Nobody but the party")
+            self.add_item(discord.ui.Label(text="Who can see /hunt channels", component=self.role,
+                                           description="Members with this role see hunts and who is in them; "
+                                                       "only the party can join. Empty: hidden."))
         elif action == COMMAND_LOG:
             self.channel = discord.ui.ChannelSelect(custom_id="channel", channel_types=[discord.ChannelType.text],
                                                     placeholder="Pick a channel", min_values=1, max_values=1)
@@ -154,6 +163,9 @@ class SettingsForm(discord.ui.Modal):
             return
         if self.action == MASSLOG:
             await self._masslog(bot, interaction)
+            return
+        if self.action == HUNT_ROLE:
+            await self._hunt_role(bot, interaction)
             return
         state = bot.state.guild(interaction.guild_id)
         name = self.worlds[0].name if len(self.worlds) == 1 else (self.world.values[0] if self.world.values else "")
@@ -210,6 +222,21 @@ class SettingsForm(discord.ui.Modal):
             for column, field in self.online_inputs.items():
                 problem = problem or number(field, column)
         return changes, problem
+
+    async def _hunt_role(self, bot: TibiaBot, interaction: discord.Interaction) -> None:
+        state = bot.state.guild(interaction.guild_id)
+        if state.info is None:
+            await interaction.followup.send(embed=embeds.error("Run `/setup` first."), ephemeral=True)
+            return
+        role = self.role.values[0] if self.role.values else None
+        state.info.hunt_role = str(role.id) if role else "0"
+        await repos.save_discord_info(await bot.db.guild(interaction.guild_id), state.info)
+        shown = role.mention if role else "**nobody but the party**"
+        await adminlog.post(interaction.guild, state.info,
+                            f"{adminlog.user(interaction.user.name)} set who can see hunts to {shown}.",
+                            SETTINGS_THUMBNAIL)
+        await interaction.followup.send(embed=embeds.ok(
+            f"New `/hunt` channels are visible to {shown}; only the party can join."), ephemeral=True)
 
     async def _masslog(self, bot: TibiaBot, interaction: discord.Interaction) -> None:
         state = bot.state.guild(interaction.guild_id)

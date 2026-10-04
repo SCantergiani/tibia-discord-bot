@@ -22,6 +22,7 @@ class DiscordInfo:
     created: datetime
     last_world: str = NONE_ID
     moderator_role: str = NONE_ID
+    hunt_role: str = NONE_ID
 
 
 @dataclass

@@ -85,3 +85,16 @@ async def test_other_voice_channels_are_ignored():
     await cog.on_voice_state_update(None, state(channel), state(None))
     await asyncio.sleep(0.1)
     assert not channel.deleted
+
+
+def test_viewer_role_can_see_but_not_join_and_party_can_join():
+    from tibiabot.cogs.hunt import party_overwrites
+    class Thing:  # hashable stand-in for a role or member
+        pass
+    everyone, me, viewers, friend = Thing(), Thing(), Thing(), Thing()
+    guild = SimpleNamespace(default_role=everyone, me=me)
+    ow = party_overwrites(guild, [friend], viewers)
+    assert ow[everyone].view_channel is False and ow[everyone].connect is False
+    assert ow[viewers].view_channel is True and ow[viewers].connect is False
+    assert ow[friend].view_channel is True and ow[friend].connect is True
+    assert viewers not in party_overwrites(guild, [friend])

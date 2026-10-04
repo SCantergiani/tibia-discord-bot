@@ -68,3 +68,13 @@ async def test_only_known_columns_can_be_repaired(db):
     pool = await db.init_guild(TEST_GUILD)
     with pytest.raises(ValueError):
         await repos.update_world_column(pool, "Antica", "name = 'x'; --", "1")
+
+
+async def test_hunt_role_round_trips_and_is_added_to_existing_databases(db):
+    pool = await db.init_guild(TEST_GUILD)
+    await pool.execute("ALTER TABLE discord_info DROP COLUMN hunt_role")  # as a database from before it existed
+    pool = await db.init_guild(TEST_GUILD)
+    info = repos.new_discord_info("G", "owner", "1", "2", "3")
+    info.hunt_role = "555"
+    await repos.save_discord_info(pool, info)
+    assert (await repos.get_discord_info(pool)).hunt_role == "555"
