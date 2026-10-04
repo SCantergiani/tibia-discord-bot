@@ -131,7 +131,7 @@ class ListService:
     async def _add_guild(self, guild: discord.Guild, hunted: bool, name: str, reason_flag: str, reason_text: str,
                          actor_id: str) -> BulkOutcome:
         try:
-            tibia_guild = await self.bot.tibiadata.guild(name)
+            tibia_guild = await self.bot.bulk.guild(name)
         except NotFound:
             return BulkOutcome(not_found=[name])
         except TibiaDataError:
@@ -252,7 +252,7 @@ class ListService:
                 wanted.setdefault(name, []).append(guild_id)
         for name, guild_ids in wanted.items():
             try:
-                tibia_guild = await self.bot.tibiadata.guild(name)
+                tibia_guild = await self.bot.bulk.guild(name)
             except TibiaDataError as e:
                 log.debug("Roster refresh for %s failed: %s", name, e)
                 continue

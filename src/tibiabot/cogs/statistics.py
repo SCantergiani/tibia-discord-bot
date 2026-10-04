@@ -77,7 +77,7 @@ class StatisticsCog(commands.Cog):
         self.store = killstats.KillStatsStore(bot.db.cache)
 
     async def collect(self) -> None:
-        await killstats.collect(self.bot.tibiadata, self.store, sorted(self.bot.state.tracked_worlds()))
+        await killstats.collect(self.bot.bulk, self.store, sorted(self.bot.state.tracked_worlds()))
 
     async def report(self, world: str, day: date) -> list[discord.Embed]:
         """The post after `day`'s server save: which bosses are due today."""

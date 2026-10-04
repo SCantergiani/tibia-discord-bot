@@ -59,7 +59,9 @@ on every request, so the bot re-checks online enemies every 5 seconds and allies
 first when the rate can't cover everyone), and starts a full poll
 the moment tibia.com refreshes its online list (once a minute). The request rate to tibia.com adapts:
 it starts at 2/s, climbs slowly while tibia.com answers cleanly, up to `FAST_POLL_CEILING` (4), and
-halves the moment it pushes back (403/429), one rate for every world since tibia.com counts per IP. Hiding neutral deaths and levels in `/settings`
+halves the moment it pushes back (403/429), one rate for every world since tibia.com counts per IP. Everything that needn't be fresh (guild
+rosters, kill statistics, sheets for new list entries and killers) comes from the public API instead
+(`TIBIADATA_BULK_HOST`), so it doesn't count against that rate. Hiding neutral deaths and levels in `/settings`
 stops the bot fetching neutral players at all.
 
 ## Deploy

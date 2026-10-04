@@ -105,3 +105,27 @@ async def test_oldest_entry_is_evicted_past_max_entries(upstream, clock):
         await cache.get(name)
     assert len(cache) == 2
     assert cache.peek("A") is None
+
+
+async def test_fresh_gets_use_the_fresh_source_and_others_the_bulk_one():
+    bulk, own = FakeUpstream(), FakeUpstream()
+    cache = CharacterAgeCache(bulk, ttl=300, clock=lambda: T0 + 10, fetch_fresh=own)
+    await cache.get("Bubble", fresh=True)
+    assert (own.calls, bulk.calls) == (1, 0)
+    cache.forget("Bubble")
+    await cache.get("Bubble")
+    assert (own.calls, bulk.calls) == (1, 1)
+
+
+async def test_an_older_sheet_never_replaces_a_newer_one():
+    now = [T0]
+    bulk, own = FakeUpstream(), FakeUpstream()
+    cache = CharacterAgeCache(bulk, ttl=300, clock=lambda: now[0], fetch_fresh=own)
+    own.next = replace(sheet(T0), level=101)
+    await cache.get("Bubble", fresh=True)
+    now[0] = T0 + 300                                # our fresh copy has expired
+    bulk.next = replace(sheet(T0 - 20), level=100)  # the public API still serves an older one
+    assert (await cache.get("Bubble")).level == 101
+    bulk.next = replace(sheet(T0 + 290), level=102)  # its next copy is newer: taken
+    now[0] = T0 + 301
+    assert (await cache.get("Bubble")).level == 102

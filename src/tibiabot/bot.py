@@ -45,10 +45,15 @@ class TibiaBot(commands.Bot):
         self.settings = settings
         self.db = Database(settings)
         self.state = BotState()
+        # `tibiadata` answers what must be fresh (online lists, fast checks); `bulk` the
+        # rest, from the public API unless TIBIADATA_BULK_HOST says otherwise.
         self.tibiadata = TibiaDataClient(settings.tibiadata_host, settings.tibiadata_max_in_flight)
-        self.sheets = CharacterAgeCache(self.tibiadata.character, ttl=settings.character_cache_ttl,
-                                        max_stale=settings.character_cache_max_stale)
-        self.world_list = WorldList(self.tibiadata)
+        self.bulk = (TibiaDataClient(settings.bulk_tibiadata_host, settings.tibiadata_max_in_flight)
+                     if settings.bulk_tibiadata_host != settings.tibiadata_host else self.tibiadata)
+        self.sheets = CharacterAgeCache(self.bulk.character, ttl=settings.character_cache_ttl,
+                                        max_stale=settings.character_cache_max_stale,
+                                        fetch_fresh=self.tibiadata.character)
+        self.world_list = WorldList(self.bulk)
         # One rate for everything sent to tibia.com: it counts per IP.
         self.rate = (AdaptiveRate(settings.fast_poll_max_per_second, settings.fast_poll_ceiling)
                      if settings.fresh_tibiadata and settings.fast_poll_seconds > 0 else None)
@@ -126,6 +131,8 @@ class TibiaBot(commands.Bot):
                   f"{self.settings.fast_poll_max_per_second:g} requests/s, adapting up to "
                   f"{self.settings.fast_poll_ceiling:g}") if self.settings.fresh_tibiadata
                  else "public, character pages up to 5 minutes old", self.settings.poll_interval)
+        if self.bulk is not self.tibiadata:
+            log.info("TibiaData for rosters, kill statistics and other lookups: %s", self.settings.bulk_tibiadata_host)
         await self._load_guilds()
         if not self.settings.dev_guild_id.isdigit():
             await self._clear_dev_commands()
@@ -223,5 +230,7 @@ class TibiaBot(commands.Bot):
             task.cancel()
         await self.pollers.stop_all()
         await self.tibiadata.close()
+        if self.bulk is not self.tibiadata:
+            await self.bulk.close()
         await self.db.close()
         await super().close()

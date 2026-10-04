@@ -32,6 +32,10 @@ class Settings:
     postgres_port: int = 5432
     postgres_user: str = "postgres"
     tibiadata_host: str = PUBLIC_TIBIADATA
+    # Where lookups that needn't be fresh go (guild rosters, kill statistics, sheets
+    # of characters nobody is watching closely): the public API by default, so only
+    # the checks that need seconds-fresh data cost requests from this machine's IP.
+    bulk_tibiadata_host: str = PUBLIC_TIBIADATA
     redis_host: str = ""
     redis_port: int = 6379
     redis_password: str = ""
@@ -75,6 +79,7 @@ def load(env_file: str | os.PathLike | None = None) -> Settings:
         postgres_port=_int("POSTGRES_PORT", 5432),
         postgres_user=os.getenv("POSTGRES_USER", "postgres"),
         tibiadata_host=(os.getenv("TIBIADATA_HOST") or PUBLIC_TIBIADATA).rstrip("/"),
+        bulk_tibiadata_host=(os.getenv("TIBIADATA_BULK_HOST") or PUBLIC_TIBIADATA).rstrip("/"),
         redis_host=os.getenv("REDIS_HOST", ""),
         redis_port=_int("REDIS_PORT", 6379),
         redis_password=os.getenv("REDIS_PASSWORD", ""),

@@ -71,7 +71,7 @@ async def service():
     await db.cache.execute("DELETE FROM list")
     state = BotState()
     state.set_world(GUILD_ID, WorldConfig("Antica", "1", "0", "0", "2", "3", "4", "5", "6", "7"))
-    bot = SimpleNamespace(db=db, state=state, sheets=FakeSheets(), tibiadata=FakeTibiaData(),
+    bot = SimpleNamespace(db=db, state=state, sheets=FakeSheets(), bulk=FakeTibiaData(),
                           get_guild=lambda _: None, settings=settings, online={}, rate=None)
     svc = ListService(bot)
     yield svc
@@ -157,13 +157,13 @@ async def test_rosters_load_and_refresh(service):
     assert service.of(GUILD_ID).listed("Member One")
     await service.load(GUILD_ID)
     assert service.of(GUILD_ID).rosters["wrath"] == {"member one", "member two"}
-    real_guild = service.bot.tibiadata.guild
+    real_guild = service.bot.bulk.guild
 
     async def recruited(name):
         g = await real_guild(name)
         return Guild(g.name, g.world, [*g.members, GuildMember("New Recruit", "Member", "Knight", 10, "online")])
 
-    service.bot.tibiadata.guild = recruited
+    service.bot.bulk.guild = recruited
     await service.refresh_rosters()
     assert service.of(GUILD_ID).listed("New Recruit")
     await service.load(GUILD_ID)
