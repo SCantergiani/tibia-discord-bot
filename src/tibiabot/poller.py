@@ -22,6 +22,19 @@ from tibiabot.tibiadata.models import Character, OnlinePlayer, World
 log = logging.getLogger(__name__)
 
 RECENTLY_OFFLINE_SECONDS = 600
+# tibia.com rebuilds a world's online list once a minute, at the same second each
+# minute. Once that second is known the watcher only looks around it: WATCH_LEAD
+# seconds early, then every WATCH_STEP seconds for at most WATCH_BURST looks.
+WATCH_LEAD = 3
+WATCH_STEP = 2
+WATCH_BURST = 6
+WATCH_MISSES_BEFORE_RELEARN = 2
+
+
+def seconds_until_phase(now: float, phase: float, lead: float = WATCH_LEAD) -> float:
+    """Wait until `lead` seconds before the minute's `phase` second comes round again."""
+    wait = ((phase - lead) - now) % 60
+    return wait if wait > 0.5 else wait + 60
 SHEET_CONCURRENCY = 32
 
 
@@ -83,6 +96,8 @@ class WorldPoller:
         self._listen_lock = asyncio.Lock()
         self._changed = asyncio.Event()
         self._prefetched: World | None = None
+        self.phase: float | None = None  # second of the minute tibia.com refreshes this world
+        self._misses = 0
         self._client = client
         self._sheets = sheets
         self._listeners = listeners
@@ -130,15 +145,35 @@ class WorldPoller:
 
     async def _run_watch(self) -> None:
         while True:
-            await asyncio.sleep(self._fast.watch_seconds)
-            if self._ticks == 0:
-                continue
             try:
-                await self.watch()
+                await self.watch_round()
             except asyncio.CancelledError:
                 raise
             except Exception:
                 log.exception("Watching %s failed", self.world)
+                await asyncio.sleep(self._fast.watch_seconds)
+
+    async def watch_round(self, clock=time.time, sleep=asyncio.sleep) -> None:
+        """One minute of watching. Until the refresh second is known, look every
+        `watch_seconds`; after, sleep to just before it and look a few times."""
+        if self._ticks == 0 or self.phase is None:
+            await sleep(self._fast.watch_seconds)
+            if self._ticks and await self.watch():
+                self.phase = clock() % 60
+            return
+        await sleep(seconds_until_phase(clock() % 60, self.phase))
+        for attempt in range(WATCH_BURST):
+            if await self.watch():
+                self.phase = clock() % 60
+                self._misses = 0
+                return
+            if attempt < WATCH_BURST - 1:
+                await sleep(WATCH_STEP)
+        # A minute with no change at the expected second: quiet world, or the
+        # second moved. Twice in a row, learn it again.
+        self._misses += 1
+        if self._misses >= WATCH_MISSES_BEFORE_RELEARN:
+            self.phase, self._misses = None, 0
 
     async def watch(self) -> bool:
         """Fetch just the online list; if it changed since the last full poll, hand

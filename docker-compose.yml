@@ -18,6 +18,9 @@ services:
 
   postgres:
     image: postgres:18
+    # Sized for a 1 GB machine: the bot's data is small and its queries simple.
+    command: ["postgres", "-c", "shared_buffers=32MB", "-c", "max_connections=40", "-c", "work_mem=2MB",
+              "-c", "maintenance_work_mem=16MB", "-c", "effective_cache_size=128MB"]
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:

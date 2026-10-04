@@ -70,6 +70,19 @@ docker compose logs -f bot
 
 Back up the `pgdata` volume: boss predictions need the kill history it accumulates.
 
+**Small machines.** The stack uses about 300 MB of RAM (Postgres is tuned for a 1 GB machine in
+`docker-compose.yml`); on a 1 GB VM add a swap file so a spike can't kill Postgres:
+
+```bash
+sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+**Outbound traffic** is set almost entirely by `FAST_POLL_MAX_PER_SECOND`: about 3.6 GB a month per
+request/second (each tibia.com page is ~50 KB even compressed, and receiving it costs ~1.4 KB of
+acknowledgements). The default 2 is ~7 GB/month; 0.25 fits a 1 GB free allowance, with deaths of
+online allies/enemies then caught within about a minute (dying logs you out) rather than seconds.
+
 ## Tests
 
 ```bash

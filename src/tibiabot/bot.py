@@ -34,7 +34,9 @@ class TibiaBot(commands.Bot):
     def __init__(self, settings: Settings):
         intents = discord.Intents.default()
         # Members intent is not needed; message content is not read.
-        super().__init__(command_prefix=commands.when_mentioned, intents=intents,
+        # No message cache: the bot never reads past messages from memory (it fetches
+        # its own online-list messages once), and the default 1,000 cost RAM.
+        super().__init__(command_prefix=commands.when_mentioned, intents=intents, max_messages=None,
                          allowed_mentions=discord.AllowedMentions(everyone=False, roles=True, users=True))
         self.settings = settings
         self.db = Database(settings)

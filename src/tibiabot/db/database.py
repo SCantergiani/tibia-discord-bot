@@ -51,7 +51,7 @@ class Database:
         s = self._settings
         return await asyncpg.create_pool(host=s.postgres_host, port=s.postgres_port, user=s.postgres_user,
                                          password=s.postgres_password, database=database,
-                                         min_size=0, max_size=5)
+                                         min_size=0, max_size=3)
 
     async def _ensure_database(self, name: str) -> bool:
         """Create `name` if missing. True when it was created now."""

@@ -78,11 +78,9 @@ def load(env_file: str | os.PathLike | None = None) -> Settings:
         character_cache_ttl=_int("CHARACTER_CACHE_TTL_SECONDS", 300),
         character_cache_max_stale=_int("CHARACTER_CACHE_MAX_STALE_SECONDS", 900),
         tibiadata_max_in_flight=_int("TIBIADATA_MAX_IN_FLIGHT", 32),
-        # A self-hosted TibiaData answers fresh, so polling faster finds deaths
-        # sooner; the public one caches for minutes, so faster gains nothing.
-        poll_interval=_int("POLL_INTERVAL_SECONDS",
-                           60 if (os.getenv("TIBIADATA_HOST") or PUBLIC_TIBIADATA).rstrip("/") == PUBLIC_TIBIADATA
-                           else 30),
+        # With a self-hosted TibiaData the watcher starts a full poll the moment tibia.com
+        # refreshes the online list (once a minute), so the timed poll is only a safety net.
+        poll_interval=_int("POLL_INTERVAL_SECONDS", 60),
         fast_poll_seconds=float(os.getenv("FAST_POLL_SECONDS", "") or 5),
         fast_poll_max_per_second=float(os.getenv("FAST_POLL_MAX_PER_SECOND", "") or 2),
         **({"emoji_dir": Path(emoji_dir)} if emoji_dir else {}),

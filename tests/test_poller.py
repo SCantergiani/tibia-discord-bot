@@ -192,3 +192,51 @@ async def test_watch_spots_a_changed_online_list_and_the_poll_reuses_it():
     snap = await poller.tick()
     assert client.calls == calls  # the watched list was handed over, not fetched again
     assert {p.name for p in snap.online} == {"A", "Enemy New"}
+
+
+from tibiabot.poller import WATCH_BURST, seconds_until_phase  # noqa: E402
+
+
+def test_seconds_until_phase_wakes_just_before_the_refresh_second():
+    assert seconds_until_phase(0, 10, lead=3) == 7
+    assert seconds_until_phase(8, 10, lead=3) == 59  # just missed it: next minute
+    assert seconds_until_phase(50, 10, lead=3) == 17
+
+
+class FakeClock:
+    def __init__(self, t=1000.0):
+        self.t = t
+        self.slept = []
+
+    def __call__(self):
+        return self.t
+
+    async def sleep(self, seconds):
+        self.slept.append(seconds)
+        self.t += seconds
+
+
+async def test_watch_learns_the_refresh_second_then_only_looks_around_it():
+    client, sheets, clock = CountingClient(), FakeSheets(), FakeClock(1000.0)
+    client.online = world("A")
+    poller = WorldPoller("Antica", client, sheets, [], priority=enemies_only, fast_lane=FastLane(5, 1))
+    await poller.tick()
+    client.online = world("A", "B")
+    await poller.watch_round(clock, clock.sleep)  # unknown phase: one look after 5s, sees the change
+    assert poller.phase == (1005.0 % 60)
+    await poller.tick()                            # the poll the change woke
+    calls = client.calls
+    await poller.watch_round(clock, clock.sleep)  # quiet minute: sleeps to just before the phase, then a burst
+    assert client.calls - calls == WATCH_BURST and clock.slept[1] > 50
+
+
+async def test_watch_relearns_after_two_quiet_minutes():
+    client, sheets, clock = CountingClient(), FakeSheets(), FakeClock(1000.0)
+    client.online = world("A")
+    poller = WorldPoller("Antica", client, sheets, [], priority=enemies_only, fast_lane=FastLane(5, 1))
+    await poller.tick()
+    poller.phase = 30.0
+    await poller.watch_round(clock, clock.sleep)
+    assert poller.phase == 30.0
+    await poller.watch_round(clock, clock.sleep)
+    assert poller.phase is None
