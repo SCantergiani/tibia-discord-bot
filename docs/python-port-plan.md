@@ -1,5 +1,9 @@
 # Python port plan
 
+> **Done (October 2026).** The Scala bot was removed after the port; this document is kept as the
+> record of what was ported, what was simplified and why. Paths below that start with `tibia-bot/`
+> or name Scala files refer to the original project's history (`git log`).
+
 Port only what our group uses. The Scala bot stays the reference implementation until
 each Python phase matches it.
 
