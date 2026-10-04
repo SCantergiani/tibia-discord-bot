@@ -122,6 +122,8 @@ class TibiaBot(commands.Bot):
                   f"{self.settings.fast_poll_ceiling:g}") if self.settings.fresh_tibiadata
                  else "public, character pages up to 5 minutes old", self.settings.poll_interval)
         await self._load_guilds()
+        if not self.settings.dev_guild_id.isdigit():
+            await self._clear_dev_commands()
         await self.pollers.sync(self.state.tracked_worlds())
         self._background.append(asyncio.create_task(self._every(LIST_REVIEW_INTERVAL, self.lists.review_sweep),
                                                     name="list-review"))
@@ -137,6 +139,18 @@ class TibiaBot(commands.Bot):
         if deaths_cog:
             self._background.append(asyncio.create_task(self._every(CACHE_PRUNE_INTERVAL, deaths_cog.prune),
                                                         name="death-cache-prune"))
+
+    async def _clear_dev_commands(self) -> None:
+        """With global commands, drop any server-only copies left from testing with
+        DEV_GUILD_ID, which would otherwise show every command twice there."""
+        for guild in self.guilds:
+            try:
+                if await self.tree.fetch_commands(guild=guild):
+                    self.tree.clear_commands(guild=guild)
+                    await self.tree.sync(guild=guild)
+                    log.info("Removed test-only command copies from %s", guild.name)
+            except discord.HTTPException as e:
+                log.warning("Could not check commands in %s: %s", guild.name, e)
 
     async def _load_guilds(self) -> None:
         for guild in self.guilds:

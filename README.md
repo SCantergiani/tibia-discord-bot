@@ -37,7 +37,9 @@ You need Docker and [uv](https://docs.astral.sh/uv/).
    **Manage Roles, Manage Channels, View Channels, Send Messages, Embed Links, Read Message History,
    Mention Everyone, Connect, Move Members**. Open the URL and add the bot to your server.
 4. Discord *User Settings → Advanced → Developer Mode* on; right-click your server → **Copy Server ID**:
-   this is `DEV_GUILD_ID` (commands then appear instantly while testing).
+   this is `DEV_GUILD_ID`: commands then appear instantly, but **only in that server**. Leave it empty
+   once the bot is in more than one server (commands then register everywhere; first time can take up
+   to an hour).
 
 ### 2. Start it
 
