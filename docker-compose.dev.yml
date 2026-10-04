@@ -1,4 +1,4 @@
-# Local development database. Postgres on host port 5433 (5432 is often taken).
+# Local development: Postgres on host port 5433 (5432 is often taken) and TibiaData on 8081.
 #   docker compose -f docker-compose.dev.yml up -d
 services:
   postgres:
@@ -30,3 +30,6 @@ services:
 
 volumes:
   pgdata-dev:
+    # Pinned: this volume was created when the dev setup lived in python/, and keeps the
+    # kill-statistics history boss predictions need.
+    name: python_pgdata-dev
