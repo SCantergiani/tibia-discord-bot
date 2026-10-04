@@ -109,3 +109,47 @@ async def test_priority_characters_are_fetched_fresh_every_tick():
     poller = WorldPoller("Antica", client, sheets, [], priority=lambda w, name, sheet: name == "Enemy")
     await poller.tick()
     assert sheets.fresh == ["Enemy"]
+
+
+from tibiabot.poller import FastLane  # noqa: E402
+
+
+def enemies_only(world, name, sheet):
+    return name.startswith("Enemy")
+
+
+async def test_fast_lane_waits_for_the_first_full_poll():
+    client, sheets = FakeClient(), FakeSheets()
+    poller = WorldPoller("Antica", client, sheets, [], priority=enemies_only, fast_lane=FastLane(5, 1))
+    assert await poller.fast_tick() is None
+
+
+async def test_fast_lane_refreshes_only_priority_names_freshly_as_a_partial_snapshot():
+    client, sheets, seen = FakeClient(), FakeSheets(), []
+
+    async def listener(snapshot):
+        seen.append(snapshot)
+
+    client.online = world("Enemy A", "Neutral")
+    poller = WorldPoller("Antica", client, sheets, [listener], priority=enemies_only, fast_lane=FastLane(5, 1))
+    await poller.tick()
+    assert sheets.fresh == []  # the full poll leaves prioritised names to the fast lane
+    snap = await poller.fast_tick()
+    assert snap.partial and set(snap.characters) == {"Enemy A"} and sheets.fresh == ["Enemy A"]
+    assert seen[-1] is snap
+
+
+async def test_fast_lane_puts_the_just_logged_out_first_and_rotates_within_budget():
+    client, sheets = FakeClient(), FakeSheets()
+    client.online = world("Enemy A", "Enemy B", "Enemy C", "Enemy D")
+    poller = WorldPoller("Antica", client, sheets, [], priority=enemies_only, fast_lane=FastLane(1, 2))
+    await poller.tick()
+    client.online = world("Enemy A", "Enemy B", "Enemy C")  # Enemy D logged out
+    await poller.tick()
+    assert poller.fast_candidates() == ["Enemy D", "Enemy A"]
+    assert poller.fast_candidates() == ["Enemy D", "Enemy B"]
+    assert poller.fast_candidates() == ["Enemy D", "Enemy C"]
+
+
+def test_budget_is_requests_per_interval():
+    assert FastLane(5, 2).budget == 10 and FastLane(1, 0.1).budget == 1

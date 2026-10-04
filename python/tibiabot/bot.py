@@ -11,7 +11,7 @@ from tibiabot.config import Settings
 from tibiabot.db import repos
 from tibiabot.db.database import Database
 from tibiabot.lists.service import ListService
-from tibiabot.poller import PollerRegistry, WorldSnapshot
+from tibiabot.poller import FastLane, PollerRegistry, WorldSnapshot
 from tibiabot.state import BotState
 from tibiabot.tibiadata.age_cache import CharacterAgeCache
 from tibiabot.tibiadata.client import TibiaDataClient
@@ -38,8 +38,10 @@ class TibiaBot(commands.Bot):
         self.sheets = CharacterAgeCache(self.tibiadata.character, ttl=settings.character_cache_ttl,
                                         max_stale=settings.character_cache_max_stale)
         self.world_list = WorldList(self.tibiadata)
+        fast = (FastLane(settings.fast_poll_seconds, settings.fast_poll_max_per_second)
+                if settings.fresh_tibiadata and settings.fast_poll_seconds > 0 else None)
         self.pollers = PollerRegistry(self.tibiadata, self.sheets, settings.poll_interval,
-                                      self._is_listed if settings.fresh_tibiadata else None)
+                                      self._is_listed if settings.fresh_tibiadata else None, fast)
         self.lists = ListService(self)
         self.pollers.listeners.append(self._log_snapshot)
         self.pollers.listeners.append(self.lists.on_snapshot)
@@ -91,7 +93,8 @@ class TibiaBot(commands.Bot):
         log.info("Logged in as %s (%s), owner %s, in %d guilds",
                  self.user, self.user.id, self.owner_user_id, len(self.guilds))
         log.info("TibiaData: %s (%s), polling every %ss", self.settings.tibiadata_host,
-                 "self-hosted, allies and enemies refreshed every poll" if self.settings.fresh_tibiadata
+                 (f"self-hosted, allies and enemies re-checked every {self.settings.fast_poll_seconds:g}s "
+                  f"(max {self.settings.fast_poll_max_per_second:g} requests/s)") if self.settings.fresh_tibiadata
                  else "public, character pages up to 5 minutes old", self.settings.poll_interval)
         await self._load_guilds()
         await self.pollers.sync(self.state.tracked_worlds())
@@ -122,6 +125,8 @@ class TibiaBot(commands.Bot):
         await self.db.drop_guild(guild.id)
 
     async def _log_snapshot(self, snapshot: WorldSnapshot) -> None:
+        if snapshot.partial:
+            return
         log.info("%s: %d online, %d sheets (%d cached), %d recently offline",
                  snapshot.world, len(snapshot.online), len(snapshot.characters), len(self.sheets),
                  len(snapshot.recently_offline))

@@ -43,6 +43,8 @@ class Settings:
     character_cache_max_stale: int = 900
     tibiadata_max_in_flight: int = 32
     poll_interval: int = 60
+    fast_poll_seconds: float = 5
+    fast_poll_max_per_second: float = 2
     emoji_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parents[2]
                             / "tibia-bot/src/main/resources/discord emojis")
 
@@ -82,5 +84,7 @@ def load(env_file: str | os.PathLike | None = None) -> Settings:
         poll_interval=_int("POLL_INTERVAL_SECONDS",
                            60 if (os.getenv("TIBIADATA_HOST") or PUBLIC_TIBIADATA).rstrip("/") == PUBLIC_TIBIADATA
                            else 30),
+        fast_poll_seconds=float(os.getenv("FAST_POLL_SECONDS", "") or 5),
+        fast_poll_max_per_second=float(os.getenv("FAST_POLL_MAX_PER_SECOND", "") or 2),
         **({"emoji_dir": Path(emoji_dir)} if emoji_dir else {}),
     )
