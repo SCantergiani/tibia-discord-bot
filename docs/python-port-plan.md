@@ -46,7 +46,7 @@ Each phase ends runnable, with its ported specs green.
 | 0 ✅ | Skeleton: config, DB init, TibiaData client with 300s character age cache, world poll loop, `/setup`, `/repair`, guild/world state | `Config`, `SchemaInitializer`, `tibiadata/*`, `setup/ChannelService`, `state/StreamState` | ~1500 |
 | 1 ✅ | Loot split: `/lootsplit`, modal, settlement embed | `lootsplit/*`, `interactions/LootSplit`, `LootSplitEmbeds` | ~520 |
 | 2 ✅ | Hunted/allies lists: panels, add/remove/clear, tags, traded/moved/deleted flagging and review sweep | `hunted/*`, `panels/*`, `PanelButtons`, `PanelModals` | ~1500 |
-| 3 | Deaths + levels + `/settings` (the filters it sets): 60s poll, death detection, embeds/colours/pings, frags, screenshot button, auto-hunted, level posts | `TibiaBot.scala` scan/post stages, `Killers`, `DeathEmbeds`, `LevelTracker`, `LevelVisibility` | ~850 |
+| 3 ✅ | Deaths + levels + `/settings` (the filters it sets): 60s poll, death detection, embeds/colours/pings, frags, screenshot button, auto-hunted, level posts | `TibiaBot.scala` scan/post stages, `Killers`, `DeathEmbeds`, `LevelTracker`, `LevelVisibility` | ~850 |
 | 4 | Online lists: roster, grouping, edit-in-place packing, channel/category rename with cooldown | `OnlineTracker`, `OnlineListEmbeds`, `OnlineListState`, `OnlineListGrouping` | ~900 |
 | 5 | Boss predictions: daily killstatistics fetch, predictor, statistics post | `statistics/*`, `KillStatisticsSchedule`, `ServerSaveSchedule` | ~600 |
 | 6 | Respawn **web board only**: Discord OAuth, all `/dashboard` routes `board.html` calls, claims/queue/bookings/stamina, expiry sweep, sprite cache | `web/DiscordAuth`, `web/RespawnDashboardRoute`, `respawn/RespawnService`, `RespawnCatalogue` | ~3500 |
@@ -70,6 +70,12 @@ on top of the same service layer.
 - The bot is named **Popaco Bot** (category "Popaco Bot", role "Popaco Bot Moderator"); `/setup` and
   `/repair` rename a server's existing "Violent Bot" category and moderator role in place.
 - `/settings` moved from Phase 2 to Phase 3, alongside the death/level/online filters it controls.
+
+- Phase 3 notes: the "Add Screenshot" button on PvP deaths of enemies is not ported (it needs the
+  message-content intent; see backlog). Death thumbnails come from TibiaWiki instead of the original
+  author's site. On a world's first poll level-ups are remembered but not posted, so a fresh start
+  doesn't flood the levels channel. Members opt in to pings with role buttons in the notifications
+  channel; `/repair` posts them if missing.
 
 ## Security carry-over
 

@@ -66,3 +66,10 @@ What is missing: a plain "enemy online" alert for any hunted player or hunted-gu
 3. Ping an `<World> Enemy Online` role, with a per-character cooldown (e.g. 30 min) so relogs and disconnects don't spam.
 4. Optional level floor and per-guild on/off in `/settings`.
 5. Ignore the first poll after a bot restart (everyone looks "new").
+
+## 4. Death screenshots
+
+The Scala bot put an "Add Screenshot" button on deaths of enemies killed by players; the clicker then
+uploaded an image in the channel and the bot attached it to the death. Not ported: reading the upload
+needs the privileged message-content intent. Discord modals now support file uploads, which would avoid
+the intent: the button opens a form with a file field, and the image is stored in `death_screenshots`.

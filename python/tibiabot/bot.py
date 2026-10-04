@@ -19,8 +19,10 @@ from tibiabot.worlds import WorldList
 
 log = logging.getLogger(__name__)
 
-EXTENSIONS = ("tibiabot.cogs.setup", "tibiabot.cogs.lootsplit", "tibiabot.cogs.lists")
+EXTENSIONS = ("tibiabot.cogs.setup", "tibiabot.cogs.lootsplit", "tibiabot.cogs.lists",
+              "tibiabot.cogs.deaths", "tibiabot.cogs.settings")
 LIST_REVIEW_INTERVAL = 30 * 60
+CACHE_PRUNE_INTERVAL = 5 * 60
 
 
 class TibiaBot(commands.Bot):
@@ -78,6 +80,10 @@ class TibiaBot(commands.Bot):
         await self.pollers.sync(self.state.tracked_worlds())
         self._background.append(asyncio.create_task(self._every(LIST_REVIEW_INTERVAL, self.lists.review_sweep),
                                                     name="list-review"))
+        deaths_cog = self.get_cog("DeathsCog")
+        if deaths_cog:
+            self._background.append(asyncio.create_task(self._every(CACHE_PRUNE_INTERVAL, deaths_cog.prune),
+                                                        name="death-cache-prune"))
 
     async def _load_guilds(self) -> None:
         for guild in self.guilds:

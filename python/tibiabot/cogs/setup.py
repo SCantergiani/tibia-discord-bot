@@ -17,6 +17,7 @@ from discord.ext import commands
 from tibiabot import embeds
 from tibiabot.db import repos
 from tibiabot.db.repos import NONE_ID, WorldConfig
+from tibiabot.cogs.settings import post_role_panel
 
 if TYPE_CHECKING:
     from tibiabot.bot import TibiaBot
@@ -136,6 +137,25 @@ class SetupCog(commands.Cog):
         await repos.save_discord_info(pool, info)
         return info
 
+    async def _ensure_role_panel(self, guild: discord.Guild, info: repos.DiscordInfo | None,
+                                 world: WorldConfig) -> bool:
+        """Post the world's role opt-in buttons in the notifications channel unless
+        they are already among its recent messages. True when posted."""
+        channel = guild.get_channel(int(info.boosted_channel)) if info and info.boosted_channel.isdigit() else None
+        if not isinstance(channel, discord.TextChannel):
+            return False
+        marker = f"role:fullbless_role:{world.name}"
+        try:
+            async for message in channel.history(limit=50):
+                if message.author.id == guild.me.id and any(
+                        getattr(child, "custom_id", None) == marker
+                        for row in message.components for child in getattr(row, "children", [])):
+                    return False
+        except discord.HTTPException:
+            pass
+        await post_role_panel(channel, world)
+        return True
+
     async def _moderator_role(self, guild: discord.Guild, pool) -> None:
         try:
             info = await repos.get_discord_info(pool)
@@ -221,6 +241,7 @@ class SetupCog(commands.Cog):
                 statistics_channel=str(channels["statistics_channel"].id))
             await repos.save_world(pool, config)
             await self._moderator_role(guild, pool)
+            await self._ensure_role_panel(guild, info, config)
             state = self.bot.state.guild(guild.id)
             state.info = await repos.get_discord_info(pool) or info
             self.bot.state.set_world(guild.id, config)
@@ -288,7 +309,10 @@ class SetupCog(commands.Cog):
             await self._moderator_role(guild, pool)
             state = self.bot.state.guild(guild.id)
             state.info = await repos.get_discord_info(pool) or info
-            self.bot.state.set_world(guild.id, await repos.get_world(pool, name))
+            config = await repos.get_world(pool, name)
+            self.bot.state.set_world(guild.id, config)
+            if await self._ensure_role_panel(guild, state.info, config):
+                fixed.append("role buttons")
         except discord.Forbidden as e:
             log.warning("/repair %s on %s missing a permission: %s", name, guild.id, e)
             await interaction.followup.send(embed=embeds.error(
