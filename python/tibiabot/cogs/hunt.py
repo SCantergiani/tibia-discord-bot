@@ -43,9 +43,11 @@ def party_overwrites(guild: discord.Guild, party: list[discord.Member], viewers:
                                           send_messages=True, read_message_history=True, use_voice_activation=True)
     overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
                   # Only what the invite already grants the bot: Discord refuses an overwrite
-                  # allowing anything the bot doesn't hold itself.
+                  # allowing anything the bot doesn't hold itself. Connect is needed to post in
+                  # a voice channel's chat, so it is granted when the bot has it server-wide.
                   guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True,
-                                                        embed_links=True, read_message_history=True)}
+                                                        embed_links=True, read_message_history=True,
+                                                        connect=True if guild.me.guild_permissions.connect else None)}
     if viewers is not None and viewers != guild.default_role:
         overwrites[viewers] = discord.PermissionOverwrite(view_channel=True, read_message_history=True,
                                                           connect=False)
@@ -108,14 +110,24 @@ class HuntForm(discord.ui.Modal, title="Start a hunt"):
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Watchdog", url=watchdog, emoji="🐶"))
         view.add_item(EndHuntButton(channel.id))
-        await channel.send(
+        welcome = dict(
             content=" ".join(m.mention for m in members),
             embed=discord.Embed(
                 title=f"🏹 {name or 'Hunt'}", color=embeds.BRAND_COLOR,
                 description=(f"Party of **{len(members)}**, started by {interaction.user.mention}.\n"
-                             f"Watchdog room: {watchdog}\n\nThis channel disappears a minute after everyone "
-                             "has left, or when someone presses **End hunt**.")),
+                             f"Join: {channel.mention}\nWatchdog room: {watchdog}\n\nThe hunt channel disappears "
+                             "a minute after everyone has left, or when someone presses **End hunt**.")),
             view=view, allowed_mentions=discord.AllowedMentions(users=members))
+        try:
+            await channel.send(**welcome)
+        except discord.HTTPException as e:
+            # The voice channel's chat refused us (missing Connect/Send there): ping the
+            # party where the command was run instead, so nobody misses the invite.
+            log.warning("Could not post in hunt channel %s (%s); posting in the command's channel", channel.id, e)
+            try:
+                await interaction.channel.send(**welcome)
+            except discord.HTTPException as e2:
+                log.warning("Could not post the hunt invite at all: %s", e2)
 
         lines = [f"Created {channel.mention}."]
         if moved:

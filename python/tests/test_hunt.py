@@ -92,9 +92,14 @@ def test_viewer_role_can_see_but_not_join_and_party_can_join():
     class Thing:  # hashable stand-in for a role or member
         pass
     everyone, me, viewers, friend = Thing(), Thing(), Thing(), Thing()
+    me.guild_permissions = SimpleNamespace(connect=True)
     guild = SimpleNamespace(default_role=everyone, me=me)
     ow = party_overwrites(guild, [friend], viewers)
     assert ow[everyone].view_channel is False and ow[everyone].connect is False
     assert ow[viewers].view_channel is True and ow[viewers].connect is False
     assert ow[friend].view_channel is True and ow[friend].connect is True
     assert viewers not in party_overwrites(guild, [friend])
+    # the bot needs Connect to post in the voice channel's chat, but only gets it if it holds it
+    assert ow[me].connect is True and ow[me].send_messages is True
+    me.guild_permissions = SimpleNamespace(connect=False)
+    assert party_overwrites(guild, [friend])[me].connect is None

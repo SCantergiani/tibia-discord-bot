@@ -14,7 +14,8 @@ You need Docker (for Postgres) and [uv](https://docs.astral.sh/uv/).
 3. Still on the **Bot** tab, leave every *Privileged Gateway Intent* off; the bot doesn't need them.
 4. **OAuth2 → URL Generator**: tick `bot` and `applications.commands`, then under bot permissions tick
    **Manage Roles, Manage Channels, View Channels, Send Messages, Embed Links, Read Message History,
-   Mention Everyone, Move Members** (Move Members lets `/privatehunt` move the party into its channel). Open the generated URL and add the bot to a test server you own.
+   Mention Everyone, Connect, Move Members** (Connect lets the bot post in a `/privatehunt` channel's chat,
+   Move Members lets it move the party in). Open the generated URL and add the bot to a test server you own.
 5. In Discord: *User Settings → Advanced → Developer Mode* on. Right-click your test server →
    **Copy Server ID**. This is `DEV_GUILD_ID`.
 
