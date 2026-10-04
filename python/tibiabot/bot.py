@@ -21,10 +21,12 @@ from tibiabot.worlds import WorldList
 log = logging.getLogger(__name__)
 
 EXTENSIONS = ("tibiabot.cogs.setup", "tibiabot.cogs.lootsplit", "tibiabot.cogs.lists",
-              "tibiabot.cogs.deaths", "tibiabot.cogs.settings", "tibiabot.cogs.online")
+              "tibiabot.cogs.deaths", "tibiabot.cogs.settings", "tibiabot.cogs.online",
+              "tibiabot.cogs.statistics")
 LIST_REVIEW_INTERVAL = 30 * 60
 CACHE_PRUNE_INTERVAL = 5 * 60
 ROSTER_REFRESH_INTERVAL = 10 * 60
+KILL_STATS_INTERVAL = 10 * 60
 
 
 class TibiaBot(commands.Bot):
@@ -110,6 +112,12 @@ class TibiaBot(commands.Bot):
                                                     name="list-review"))
         self._background.append(asyncio.create_task(self._every(ROSTER_REFRESH_INTERVAL, self.lists.refresh_rosters),
                                                     name="roster-refresh"))
+        stats_cog = self.get_cog("StatisticsCog")
+        if stats_cog:
+            self._background.append(asyncio.create_task(self._every(KILL_STATS_INTERVAL, stats_cog.collect),
+                                                        name="kill-statistics"))
+            self._background.append(asyncio.create_task(self._every(60, stats_cog.post_due), name="statistics-post"))
+            asyncio.create_task(stats_cog.collect(), name="kill-statistics-first")
         deaths_cog = self.get_cog("DeathsCog")
         if deaths_cog:
             self._background.append(asyncio.create_task(self._every(CACHE_PRUNE_INTERVAL, deaths_cog.prune),

@@ -48,7 +48,7 @@ Each phase ends runnable, with its ported specs green.
 | 2 ✅ | Hunted/allies lists: panels, add/remove/clear, tags, traded/moved/deleted flagging and review sweep | `hunted/*`, `panels/*`, `PanelButtons`, `PanelModals` | ~1500 |
 | 3 ✅ | Deaths + levels + `/settings` (the filters it sets): 60s poll, death detection, embeds/colours/pings, frags, screenshot button, auto-hunted, level posts | `TibiaBot.scala` scan/post stages, `Killers`, `DeathEmbeds`, `LevelTracker`, `LevelVisibility` | ~850 |
 | 4 ✅ | Online lists: roster, grouping, edit-in-place packing, channel/category rename with cooldown | `OnlineTracker`, `OnlineListEmbeds`, `OnlineListState`, `OnlineListGrouping` | ~900 |
-| 5 | Boss predictions: daily killstatistics fetch, predictor, statistics post | `statistics/*`, `KillStatisticsSchedule`, `ServerSaveSchedule` | ~600 |
+| 5 ✅ | Boss predictions: daily killstatistics fetch, predictor, statistics post | `statistics/*`, `KillStatisticsSchedule`, `ServerSaveSchedule` | ~600 |
 | 6 | Respawn **web board only**: Discord OAuth, all `/dashboard` routes `board.html` calls, claims/queue/bookings/stamina, expiry sweep, sprite cache | `web/DiscordAuth`, `web/RespawnDashboardRoute`, `respawn/RespawnService`, `RespawnCatalogue` | ~3500 |
 
 Phase 6 must keep the JSON contracts `board.html` relies on exactly (routes and shapes
@@ -82,6 +82,14 @@ on top of the same service layer.
   online durations are counted from when this bot first saw a player (not kept across restarts), and
   anyone already online at startup shows `+` and never gets :zap:. Players whose sheet isn't fetched
   (neutrals, when hidden) are listed without their guild.
+
+- Phase 5 notes: the daily post carries the kill-statistics summary, Bosses Due and the top creature
+  kills; the Scala post's experience gains, highscore advance, Dream Court and PvP sections are not
+  ported (they need highscores and frag summaries). Predictions start from fresh data, so a boss is
+  only predicted once the bot has seen it killed: short-cycle bosses fill in within a couple of weeks,
+  world bosses (cycles of months) need their next kill. Predictions count from the current game day.
+  `/bosses` shows them on demand. Creature names are not linked (plural race names don't match wiki
+  titles).
 
 ## Security carry-over
 

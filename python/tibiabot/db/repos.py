@@ -124,6 +124,7 @@ SETTING_COLUMNS: dict[str, type] = {
     "online_allies_min": int, "online_enemies_min": int, "online_neutrals_min": int,
     # A role id (ping that role), "everyone" (ping @everyone) or "0" (no mass-log alert).
     "masslog_role": str,
+    "statistics_posted": str,  # ISO date of the last daily statistics post
 }
 
 
