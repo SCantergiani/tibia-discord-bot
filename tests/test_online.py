@@ -227,6 +227,10 @@ class FakeChannel(discord.TextChannel):
 
     async def send(self, content=None, **kwargs):
         self.sent.append((content, kwargs))
+        return SimpleNamespace(id=len(self.sent), delete=self._delete)
+
+    async def _delete(self):
+        pass
 
 
 async def test_alert_pings_the_chosen_audience_once_per_cooldown():
@@ -332,3 +336,18 @@ async def test_enemies_then_allies_lead_the_category():
     category.text_channels = [enemies, allies, deaths]
     await OnlineCog._order(enemies, allies)
     assert moves == []
+
+
+async def test_mass_log_alerts_expire():
+    cog = OnlineCog(SimpleNamespace(pollers=SimpleNamespace(listeners=[])))
+    deleted, slept = [], []
+
+    async def delete():
+        deleted.append(1)
+
+    async def sleep(seconds):
+        slept.append(seconds)
+    message = SimpleNamespace(id=1, delete=delete)
+    await cog._expire(message, 1200, sleep=sleep)
+    await cog._expire(message, -60, sleep=sleep)  # posted before a restart, already overdue
+    assert slept == [1200] and len(deleted) == 2

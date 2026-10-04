@@ -29,6 +29,7 @@ REFRESH_SECONDS = 60
 RENAME_COOLDOWN = timedelta(minutes=5, seconds=5)
 MASSLOG_QUIET_AFTER_START = 30 * 60
 MASSLOG_COLOR = 14397256
+MASSLOG_ALERT_LIFETIME = 20 * 60  # an alert is deleted this long after it was posted
 LIST_COLOR = 3092790
 
 
@@ -41,6 +42,7 @@ class OnlineCog(commands.Cog):
         self._wanted_name: dict[int, str] = {}
         self._renaming: dict[int, asyncio.Task] = {}
         self._create_tried: set[tuple[int, str]] = set()
+        self._swept: set[int] = set()
         self._started = time.time()
         self._last_alert: dict[tuple[int, str], float] = {}
         bot.pollers.listeners.append(self.on_snapshot)
@@ -123,6 +125,9 @@ class OnlineCog(commands.Cog):
         async with lock:
             try:
                 enemies = await self._enemies_channel(guild, world, allies)
+                deaths = self._text_channel(guild, world.deaths_channel)
+                if enemies and deaths and deaths.id not in self._swept:
+                    await self._sweep_old_alerts(deaths)
                 built = self._build(guild_id, world, world_online)
                 masslog = built.masslog and time.time() - self._started > MASSLOG_QUIET_AFTER_START
                 if enemies is None:  # couldn't make one: both sides share the allies channel
@@ -194,8 +199,9 @@ class OnlineCog(commands.Cog):
                          f"{self.bot.settings.masslog_minutes:g} minutes "
                          f"(**{built.enemies}** online).\n\n{who}{more}")[:4096])
         try:
-            await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions(
+            message = await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions(
                 everyone=mode == "everyone", roles=[role] if role else []))
+            self._expire(message, MASSLOG_ALERT_LIFETIME)
         except discord.HTTPException as e:
             log.warning("Could not post a mass log alert in %s: %s", guild.id, e)
 
@@ -204,11 +210,35 @@ class OnlineCog(commands.Cog):
     async def _existing(self, channel: discord.TextChannel) -> list[tuple[int, list[str]]]:
         """Our messages in the channel, oldest first: read once, then remembered."""
         if channel.id not in self._posted:
-            # Only the list's messages: mass log alerts in the same channel stay as they are.
-            mine = [m async for m in channel.history(limit=50) if m.author.id == self.bot.user.id
-                    and m.embeds and all(e.color and e.color.value == LIST_COLOR for e in m.embeds)]
+            ours = [m async for m in channel.history(limit=50) if m.author.id == self.bot.user.id and m.embeds]
+            # Mass log alerts left from before a restart: due to go, or gone already.
+            now = datetime.now(timezone.utc)
+            for m in ours:
+                if any(e.color and e.color.value == MASSLOG_COLOR for e in m.embeds):
+                    self._expire(m, MASSLOG_ALERT_LIFETIME - (now - m.created_at).total_seconds())
+            mine = [m for m in ours if all(e.color and e.color.value == LIST_COLOR for e in m.embeds)]
             self._posted[channel.id] = [(m.id, [e.description or "" for e in m.embeds]) for m in reversed(mine)]
         return self._posted[channel.id]
+
+    async def _sweep_old_alerts(self, channel: discord.TextChannel) -> None:
+        """Mass log alerts used to go to the deaths channel: expire those too (once a run)."""
+        self._swept.add(channel.id)
+        now = datetime.now(timezone.utc)
+        async for m in channel.history(limit=100):
+            if m.author.id == self.bot.user.id and any(e.color and e.color.value == MASSLOG_COLOR for e in m.embeds):
+                self._expire(m, MASSLOG_ALERT_LIFETIME - (now - m.created_at).total_seconds())
+
+    def _expire(self, message: discord.Message, after: float, sleep=asyncio.sleep) -> asyncio.Task:
+        async def run() -> None:
+            if after > 0:
+                await sleep(after)
+            try:
+                await message.delete()
+            except discord.NotFound:
+                pass
+            except discord.HTTPException as e:
+                log.warning("Could not delete mass log alert %s: %s", message.id, e)
+        return asyncio.create_task(run(), name=f"expire:{message.id}")
 
     @staticmethod
     def _embeds(descriptions: list[str], last_message: bool) -> list[discord.Embed]:
