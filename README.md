@@ -53,9 +53,10 @@ Then `/setup world: <your world>` in Discord.
 ### Why your own TibiaData
 
 The public TibiaData API serves character pages up to 5 minutes old. Your own instance scrapes tibia.com
-on every request, so the bot polls every 30 seconds, re-checks allies and enemies every 5 seconds (at
-most `FAST_POLL_MAX_PER_SECOND`, default 2, requests to tibia.com), and starts a full poll the moment
-tibia.com refreshes its online list (once a minute). Hiding neutral deaths and levels in `/settings`
+on every request, so the bot re-checks online allies and enemies every 5 seconds and starts a full poll
+the moment tibia.com refreshes its online list (once a minute). The request rate to tibia.com adapts:
+it starts at 2/s, climbs slowly while tibia.com answers cleanly, up to `FAST_POLL_CEILING` (4), and
+halves the moment it pushes back (403/429), one rate for every world since tibia.com counts per IP. Hiding neutral deaths and levels in `/settings`
 stops the bot fetching neutral players at all.
 
 ## Deploy
@@ -78,9 +79,10 @@ sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapf
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
 
-**Outbound traffic** is set almost entirely by `FAST_POLL_MAX_PER_SECOND`: about 3.6 GB a month per
+**Outbound traffic** is set almost entirely by the fast-check rate: about 3.6 GB a month per
 request/second (each tibia.com page is ~50 KB even compressed, and receiving it costs ~1.4 KB of
-acknowledgements). The default 2 is ~7 GB/month; 0.25 fits a 1 GB free allowance, with deaths of
+acknowledgements). At a steady 2/s that's ~7 GB/month (only reached with 10+ allies/enemies online all the time; lower
+`FAST_POLL_CEILING` to bound it); a ceiling of 0.25 fits a 1 GB free allowance, with deaths of
 online allies/enemies then caught within about a minute (dying logs you out) rather than seconds.
 
 ## Tests

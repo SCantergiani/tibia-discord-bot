@@ -15,6 +15,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable
 
+from tibiabot.ratelimit import AdaptiveRate
 from tibiabot.tibiadata.age_cache import CharacterAgeCache
 from tibiabot.tibiadata.client import NotFound, TibiaDataClient, TibiaDataError
 from tibiabot.tibiadata.models import Character, OnlinePlayer, World
@@ -69,6 +70,9 @@ class FastLane:
     budget. Anyone who just logged out goes first: dying logs you out."""
     interval: float = 5
     max_per_second: float = 2
+    # When set, decides the rate (it adapts to how tibia.com answers) and spaces
+    # the requests; max_per_second is then only its starting point.
+    limiter: "AdaptiveRate | None" = None
     # How often to look at the world's online list alone. tibia.com rebuilds it
     # once a minute; seeing the change within seconds starts a full poll at once,
     # which is what makes a mass log alert as quick as the data allows.
@@ -76,7 +80,8 @@ class FastLane:
 
     @property
     def budget(self) -> int:
-        return max(1, int(self.interval * self.max_per_second))
+        rate = self.limiter.rate if self.limiter else self.max_per_second
+        return max(1, int(self.interval * rate))
 
 
 class WorldPoller:
@@ -218,6 +223,8 @@ class WorldPoller:
     async def fast_tick(self) -> WorldSnapshot | None:
         if self._ticks == 0:
             return None  # nothing known about who is online yet
+        if self._fast.limiter and self._fast.limiter.paused:
+            return None  # tibia.com pushed back: sit this round out
         names = self.fast_candidates()
         if not names:
             return None
@@ -271,6 +278,8 @@ class WorldPoller:
                 # With a fast lane, prioritised sheets are already kept fresh by it.
                 again = fresh or (bool(self._priority) and not self._fast
                                   and self._priority(self.world, name, self._sheets.peek(name)))
+                if fresh and self._fast and self._fast.limiter:
+                    await self._fast.limiter.acquire()
                 try:
                     result[name] = await self._sheets.get(name, fresh=again)
                 except NotFound:

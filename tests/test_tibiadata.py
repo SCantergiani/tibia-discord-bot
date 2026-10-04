@@ -115,3 +115,16 @@ async def test_character_with_a_space_in_the_name(tibiadata):
     fake, client = tibiadata
     fake.reply("/v4/character/Abu Shusha", body=fixture("character.json"))
     assert (await client.character("Abu Shusha")).name == "Abu Shusha"
+
+
+async def test_refusals_are_reported_for_backing_off(tibiadata):
+    fake, client = tibiadata
+    seen = []
+    client.on_pushback = seen.append
+    fake.reply("/v4/world/Antica", 429)
+    with pytest.raises(TibiaDataError):
+        await client.world("Antica")
+    fake.reply("/v4/character/Nobody", 404)
+    with pytest.raises(NotFound):
+        await client.character("Nobody")
+    assert seen == [429]

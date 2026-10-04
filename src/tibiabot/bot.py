@@ -13,6 +13,7 @@ from tibiabot.db.database import Database
 from tibiabot.lists.service import ListService
 from tibiabot.online import WorldOnline
 from tibiabot.poller import FastLane, PollerRegistry, WorldSnapshot
+from tibiabot.ratelimit import AdaptiveRate
 from tibiabot.state import BotState
 from tibiabot.tibiadata.age_cache import CharacterAgeCache
 from tibiabot.tibiadata.client import TibiaDataClient
@@ -45,8 +46,13 @@ class TibiaBot(commands.Bot):
         self.sheets = CharacterAgeCache(self.tibiadata.character, ttl=settings.character_cache_ttl,
                                         max_stale=settings.character_cache_max_stale)
         self.world_list = WorldList(self.tibiadata)
-        fast = (FastLane(settings.fast_poll_seconds, settings.fast_poll_max_per_second)
-                if settings.fresh_tibiadata and settings.fast_poll_seconds > 0 else None)
+        # One rate for everything sent to tibia.com: it counts per IP.
+        self.rate = (AdaptiveRate(settings.fast_poll_max_per_second, settings.fast_poll_ceiling)
+                     if settings.fresh_tibiadata and settings.fast_poll_seconds > 0 else None)
+        if self.rate:
+            self.tibiadata.on_pushback = self.rate.on_pushback
+        fast = (FastLane(settings.fast_poll_seconds, settings.fast_poll_max_per_second, limiter=self.rate)
+                if self.rate else None)
         self.pollers = PollerRegistry(self.tibiadata, self.sheets, settings.poll_interval,
                                       self._is_listed if settings.fresh_tibiadata else None, fast,
                                       relevant=self._is_listed, wants_neutrals=self._wants_neutrals)
@@ -106,8 +112,9 @@ class TibiaBot(commands.Bot):
         log.info("Logged in as %s (%s), owner %s, in %d guilds",
                  self.user, self.user.id, self.owner_user_id, len(self.guilds))
         log.info("TibiaData: %s (%s), polling every %ss", self.settings.tibiadata_host,
-                 (f"self-hosted, allies and enemies re-checked every {self.settings.fast_poll_seconds:g}s "
-                  f"(max {self.settings.fast_poll_max_per_second:g} requests/s)") if self.settings.fresh_tibiadata
+                 (f"self-hosted, allies and enemies re-checked every {self.settings.fast_poll_seconds:g}s at "
+                  f"{self.settings.fast_poll_max_per_second:g} requests/s, adapting up to "
+                  f"{self.settings.fast_poll_ceiling:g}") if self.settings.fresh_tibiadata
                  else "public, character pages up to 5 minutes old", self.settings.poll_interval)
         await self._load_guilds()
         await self.pollers.sync(self.state.tracked_worlds())

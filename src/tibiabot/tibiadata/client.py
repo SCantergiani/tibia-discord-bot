@@ -30,7 +30,10 @@ class NotFound(TibiaDataError):
 
 
 class TibiaDataClient:
-    def __init__(self, base_url: str, max_in_flight: int = 32, session: aiohttp.ClientSession | None = None):
+    def __init__(self, base_url: str, max_in_flight: int = 32, session: aiohttp.ClientSession | None = None,
+                 on_pushback: Callable[[int], None] | None = None):
+        # Told every refusal or upstream failure status, so the request rate can back off.
+        self.on_pushback = on_pushback
         self._base = base_url.rstrip("/")
         self._limit = asyncio.Semaphore(max_in_flight)
         self._session = session
@@ -60,6 +63,8 @@ class TibiaDataClient:
         for attempt in range(MAX_RETRIES + 1):
             try:
                 async with self._limit, self._http().get(url) as resp:
+                    if resp.status not in (200, 404) and self.on_pushback:
+                        self.on_pushback(resp.status)
                     if resp.status == 200:
                         return await resp.json(content_type=None)
                     if resp.status == 404:

@@ -60,9 +60,10 @@ class ListService:
                      for name in self.bot.online[world].players if name.lower() in tracked)
         settings = self.bot.settings
         fast = settings.fresh_tibiadata and settings.fast_poll_seconds > 0
+        rate = self.bot.rate
         return tracking_load.estimate(len(tracked), online,
                                       settings.fast_poll_seconds if fast else None,
-                                      settings.fast_poll_max_per_second if fast else None)
+                                      (rate.rate if rate else settings.fast_poll_max_per_second) if fast else None)
 
     # --- lookups -------------------------------------------------------------
 

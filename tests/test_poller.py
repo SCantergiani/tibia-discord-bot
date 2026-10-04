@@ -240,3 +240,16 @@ async def test_watch_relearns_after_two_quiet_minutes():
     assert poller.phase == 30.0
     await poller.watch_round(clock, clock.sleep)
     assert poller.phase is None
+
+
+async def test_fast_lane_sits_out_while_paused_and_takes_its_budget_from_the_limiter():
+    from tibiabot.ratelimit import AdaptiveRate
+    client, sheets = FakeClient(), FakeSheets()
+    client.online = world("Enemy A")
+    rate = AdaptiveRate(start=2, ceiling=4)
+    lane = FastLane(5, 2, limiter=rate)
+    poller = WorldPoller("Antica", client, sheets, [], priority=enemies_only, fast_lane=lane)
+    await poller.tick()
+    assert lane.budget == 10
+    rate.on_pushback(429)
+    assert lane.budget == 5 and await poller.fast_tick() is None

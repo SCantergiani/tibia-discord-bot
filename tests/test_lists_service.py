@@ -72,7 +72,7 @@ async def service():
     state = BotState()
     state.set_world(GUILD_ID, WorldConfig("Antica", "1", "0", "0", "2", "3", "4", "5", "6", "7"))
     bot = SimpleNamespace(db=db, state=state, sheets=FakeSheets(), tibiadata=FakeTibiaData(),
-                          get_guild=lambda _: None, settings=settings, online={})
+                          get_guild=lambda _: None, settings=settings, online={}, rate=None)
     svc = ListService(bot)
     yield svc
     await db.drop_guild(GUILD_ID)
