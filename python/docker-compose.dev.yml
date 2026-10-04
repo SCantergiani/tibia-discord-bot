@@ -15,5 +15,18 @@ services:
       timeout: 3s
       retries: 20
 
+  # Your own TibiaData: scrapes tibia.com on every request instead of serving the
+  # public API's copies that can be 5 minutes old. Set TIBIADATA_HOST to use it.
+  tibiadata:
+    image: ghcr.io/tibiadata/tibiadata-api-go:latest
+    # Docker's embedded resolver on a compose network fails on some hosts, and
+    # TibiaData exits if it can't fetch its asset list at startup.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    ports:
+      - "127.0.0.1:8081:8080"
+    restart: unless-stopped
+
 volumes:
   pgdata-dev:

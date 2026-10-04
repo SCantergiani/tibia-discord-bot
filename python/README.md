@@ -28,6 +28,12 @@ uv sync
 uv run tibiabot
 ```
 
+`docker compose ... up` also starts your own **TibiaData** on port 8081, and `.env.example` points the bot
+at it. The public TibiaData API serves character pages up to 5 minutes old; your own one scrapes tibia.com
+on every request, so the bot polls every 30 seconds and re-checks allies and enemies (online, or offline for
+under 10 minutes) on every poll. Deaths of allies and enemies show up within about 30 seconds. Remove
+`TIBIADATA_HOST` from `.env` to go back to the public API (60-second polls, deaths up to ~6 minutes late).
+
 On first start the bot creates the `bot_cache` database, uploads its custom emojis to your application
 (Developer Portal → your app → **Emojis** shows them), and registers `/setup`, `/repair` and `/remove` in
 your test server.

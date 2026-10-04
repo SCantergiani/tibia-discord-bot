@@ -47,6 +47,11 @@ class Settings:
                             / "tibia-bot/src/main/resources/discord emojis")
 
     @property
+    def fresh_tibiadata(self) -> bool:
+        """True for a self-hosted TibiaData, which scrapes tibia.com on every request."""
+        return self.tibiadata_host != PUBLIC_TIBIADATA
+
+    @property
     def redis_enabled(self) -> bool:
         return bool(self.redis_host)
 
@@ -72,6 +77,10 @@ def load(env_file: str | os.PathLike | None = None) -> Settings:
         character_cache_ttl=_int("CHARACTER_CACHE_TTL_SECONDS", 300),
         character_cache_max_stale=_int("CHARACTER_CACHE_MAX_STALE_SECONDS", 900),
         tibiadata_max_in_flight=_int("TIBIADATA_MAX_IN_FLIGHT", 32),
-        poll_interval=_int("POLL_INTERVAL_SECONDS", 60),
+        # A self-hosted TibiaData answers fresh, so polling faster finds deaths
+        # sooner; the public one caches for minutes, so faster gains nothing.
+        poll_interval=_int("POLL_INTERVAL_SECONDS",
+                           60 if (os.getenv("TIBIADATA_HOST") or PUBLIC_TIBIADATA).rstrip("/") == PUBLIC_TIBIADATA
+                           else 30),
         **({"emoji_dir": Path(emoji_dir)} if emoji_dir else {}),
     )

@@ -36,12 +36,15 @@ class WorldSnapshot:
 
 
 Listener = Callable[[WorldSnapshot], Awaitable[None]]
+# (world, character name, last known sheet or None) -> re-fetch on every tick?
+Priority = Callable[[str, str, "Character | None"], bool]
 
 
 class WorldPoller:
     def __init__(self, world: str, client: TibiaDataClient, sheets: CharacterAgeCache,
-                 listeners: list[Listener], interval: float = 60):
+                 listeners: list[Listener], interval: float = 60, priority: Priority | None = None):
         self.world = world
+        self._priority = priority
         self._client = client
         self._sheets = sheets
         self._listeners = listeners
@@ -107,8 +110,9 @@ class WorldPoller:
 
         async def one(name: str) -> None:
             async with gate:
+                fresh = bool(self._priority) and self._priority(self.world, name, self._sheets.peek(name))
                 try:
-                    result[name] = await self._sheets.get(name)
+                    result[name] = await self._sheets.get(name, fresh=fresh)
                 except NotFound:
                     self._last_seen.pop(name, None)
                 except TibiaDataError as e:
@@ -121,8 +125,10 @@ class WorldPoller:
 class PollerRegistry:
     """Starts a poller when the first guild tracks a world, stops it with the last."""
 
-    def __init__(self, client: TibiaDataClient, sheets: CharacterAgeCache, interval: float = 60):
+    def __init__(self, client: TibiaDataClient, sheets: CharacterAgeCache, interval: float = 60,
+                 priority: Priority | None = None):
         self._client = client
+        self._priority = priority
         self._sheets = sheets
         self._interval = interval
         self._pollers: dict[str, WorldPoller] = {}
@@ -137,7 +143,7 @@ class PollerRegistry:
             await self._pollers.pop(world).stop()
             log.info("Stopped polling %s", world)
         for world in wanted - set(self._pollers):
-            poller = WorldPoller(world, self._client, self._sheets, self.listeners, self._interval)
+            poller = WorldPoller(world, self._client, self._sheets, self.listeners, self._interval, self._priority)
             self._pollers[world] = poller
             poller.start()
             log.info("Started polling %s", world)

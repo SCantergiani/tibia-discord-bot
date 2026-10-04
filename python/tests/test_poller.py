@@ -28,9 +28,15 @@ class FakeSheets:
     def __init__(self, missing=()):
         self.missing = set(missing)
         self.asked: list[str] = []
+        self.fresh: list[str] = []
 
-    async def get(self, name: str) -> Character:
+    def peek(self, name: str) -> Character | None:
+        return None
+
+    async def get(self, name: str, fresh: bool = False) -> Character:
         self.asked.append(name)
+        if fresh:
+            self.fresh.append(name)
         if name in self.missing:
             raise NotFound(name)
         return sheet(name)
@@ -95,3 +101,11 @@ async def test_a_failing_listener_does_not_stop_the_others():
 
     await WorldPoller("Antica", client, sheets, [broken, listener]).tick()
     assert len(seen) == 1
+
+
+async def test_priority_characters_are_fetched_fresh_every_tick():
+    client, sheets = FakeClient(), FakeSheets()
+    client.online = world("Enemy", "Neutral")
+    poller = WorldPoller("Antica", client, sheets, [], priority=lambda w, name, sheet: name == "Enemy")
+    await poller.tick()
+    assert sheets.fresh == ["Enemy"]

@@ -38,12 +38,26 @@ class TibiaBot(commands.Bot):
         self.sheets = CharacterAgeCache(self.tibiadata.character, ttl=settings.character_cache_ttl,
                                         max_stale=settings.character_cache_max_stale)
         self.world_list = WorldList(self.tibiadata)
-        self.pollers = PollerRegistry(self.tibiadata, self.sheets, settings.poll_interval)
+        self.pollers = PollerRegistry(self.tibiadata, self.sheets, settings.poll_interval,
+                                      self._is_listed if settings.fresh_tibiadata else None)
         self.lists = ListService(self)
         self.pollers.listeners.append(self._log_snapshot)
         self.pollers.listeners.append(self.lists.on_snapshot)
         self._ready_once = False
         self._background: list[asyncio.Task] = []
+
+    def _is_listed(self, world: str, name: str, sheet) -> bool:
+        """An ally or enemy of any server tracking this world: their deaths matter
+        most, so their sheet is re-fetched on every poll."""
+        lower = name.lower()
+        guild = (sheet.guild_name or "").lower() if sheet else ""
+        for guild_id, _ in self.state.guilds_tracking(world):
+            lists = self.lists.of(guild_id)
+            if lower in lists.hunted_players or lower in lists.allied_players:
+                return True
+            if guild and (guild in lists.hunted_guilds or guild in lists.allied_guilds):
+                return True
+        return False
 
     @property
     def owner_user_id(self) -> int | None:
@@ -76,6 +90,9 @@ class TibiaBot(commands.Bot):
         await self.is_owner(self.user)  # populates owner_id from application info
         log.info("Logged in as %s (%s), owner %s, in %d guilds",
                  self.user, self.user.id, self.owner_user_id, len(self.guilds))
+        log.info("TibiaData: %s (%s), polling every %ss", self.settings.tibiadata_host,
+                 "self-hosted, allies and enemies refreshed every poll" if self.settings.fresh_tibiadata
+                 else "public, character pages up to 5 minutes old", self.settings.poll_interval)
         await self._load_guilds()
         await self.pollers.sync(self.state.tracked_worlds())
         self._background.append(asyncio.create_task(self._every(LIST_REVIEW_INTERVAL, self.lists.review_sweep),

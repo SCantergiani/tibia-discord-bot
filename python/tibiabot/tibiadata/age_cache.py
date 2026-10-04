@@ -41,11 +41,13 @@ class CharacterAgeCache:
         entry = self._entries.get(name.lower())
         return entry.character if entry else None
 
-    async def get(self, name: str) -> Character:
+    async def get(self, name: str, fresh: bool = False) -> Character:
+        """`fresh` skips the stored copy (still used to cover a failed fetch):
+        worth it only against a TibiaData that doesn't cache, see poller.py."""
         key = name.lower()
         now = self._clock()
         entry = self._entries.get(key)
-        if entry and now < entry.fresh_until:
+        if entry and now < entry.fresh_until and not fresh:
             return entry.character
         try:
             character = await self._fetch(name)

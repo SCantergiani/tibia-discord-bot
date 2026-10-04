@@ -158,8 +158,8 @@ class DeathsCog(commands.Cog):
             embed.description += f"\n{emojis.get('exiva')} `exiva \"{post.victim}\"`"
             role = _role(guild, world.fullbless_role)
             ping = role if role and post.level >= world.fullbless_level else None
-        elif post.poke != "screenshot":
-            silent = True
+        elif not (post.relation and (post.relation.ally or post.relation.enemy)):
+            silent = True  # only neutral deaths arrive without a notification
         try:
             return await channel.send(content=ping.mention if ping else None, embed=embed, silent=silent,
                                       allowed_mentions=discord.AllowedMentions(roles=[ping] if ping else []))
