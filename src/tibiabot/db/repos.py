@@ -67,7 +67,7 @@ DISCORD_COLUMNS = tuple(f.name for f in fields(DiscordInfo))
 # Channel/role columns `/repair` may rewrite; anything else is refused so a
 # column name never comes from outside this module.
 REPAIRABLE_COLUMNS = frozenset({
-    "allies_channel", "levels_channel", "deaths_channel", "category", "statistics_channel",
+    "allies_channel", "enemies_channel", "levels_channel", "deaths_channel", "category", "statistics_channel",
     "fullbless_role", "nemesis_role", "allypk_role", "masslog_role",
 })
 

@@ -15,6 +15,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from tibiabot import embeds, visibility
+from tibiabot.online import ALLIES_CHANNEL, ENEMIES_CHANNEL
 from tibiabot.commands_guide import COMMANDS_CHANNEL, ensure_guide, same_channel_name
 from tibiabot.status import STATUS_CHANNEL
 from tibiabot.db import repos
@@ -29,7 +30,6 @@ log = logging.getLogger(__name__)
 ADMIN_CATEGORY = "Popaco Bot"
 COMMAND_LOG = "🖥️・ᴄᴏᴍᴍᴀɴᴅ ʟᴏɢ"
 NOTIFICATIONS = "👑・ɴᴏᴛɪғɪᴄᴀᴛɪᴏɴs"
-ONLINE = "📈・ᴏɴʟɪɴᴇ"
 DEATHS = "💀・ᴅᴇᴀᴛʜs"
 LEVELS = "💖・ʟᴇᴠᴇʟs"
 STATISTICS = "📊・sᴛᴀᴛɪsᴛɪᴄs"
@@ -44,7 +44,8 @@ WORLD_ROLES = (
 )
 # (worlds column, channel name, intro text or None)
 WORLD_CHANNELS = (
-    ("allies_channel", ONLINE, None),
+    ("allies_channel", ALLIES_CHANNEL, None),
+    ("enemies_channel", ENEMIES_CHANNEL, None),
     ("deaths_channel", DEATHS, ":speech_balloon: This channel shows deaths that occur on this world.\n\n"
                                "You can filter what appears in this channel using **`/settings`**."),
     ("levels_channel", LEVELS, ":speech_balloon: This channel shows levels that have been gained on this world.\n\n"
@@ -253,7 +254,8 @@ class SetupCog(commands.Cog):
                 if intro and created:
                     await channels[col].send(embed=embeds.channel_intro(intro))
             config = WorldConfig(
-                name=name, allies_channel=str(channels["allies_channel"].id), enemies_channel=NONE_ID,
+                name=name, allies_channel=str(channels["allies_channel"].id),
+                enemies_channel=str(channels["enemies_channel"].id),
                 neutrals_channel=NONE_ID, levels_channel=str(channels["levels_channel"].id),
                 deaths_channel=str(channels["deaths_channel"].id), category=str(category.id),
                 fullbless_role=str(roles["fullbless_role"].id), nemesis_role=str(roles["nemesis_role"].id),

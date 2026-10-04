@@ -19,7 +19,7 @@ from tibiabot.status import STATUS_CHANNEL
 
 log = logging.getLogger(__name__)
 
-WORLD_CHANNEL_COLUMNS = ("allies_channel", "deaths_channel", "levels_channel", "statistics_channel")
+WORLD_CHANNEL_COLUMNS = ("allies_channel", "enemies_channel", "deaths_channel", "levels_channel", "statistics_channel")
 
 
 def _by_id(guild: discord.Guild, channel_id: str | None) -> discord.abc.GuildChannel | None:

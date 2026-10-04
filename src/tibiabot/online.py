@@ -65,14 +65,19 @@ def duration_text(seconds: int, known: bool) -> str:
     return f"`{text}{'' if known else '+'}`"
 
 
-def channel_name(base: str, allies: int, enemies: int, masslog: bool) -> str:
-    """'📈・ᴏɴʟɪɴᴇ' + '・🤍3💀2⚡': allies and enemies online, ⚡ during a mass log."""
-    suffix = (f"🤍{allies}" if allies else "") + (f"💀{enemies}" if enemies else "") + ("⚡" if masslog else "")
-    return f"{base}・{suffix}" if suffix else base
+ALLIES_CHANNEL = "🤍・ᴀʟʟɪᴇs"
+ENEMIES_CHANNEL = "⚔️・ᴇɴᴇᴍɪᴇs"
+OLD_ONLINE_CHANNEL = "📈・ᴏɴʟɪɴᴇ"  # the single list both sides shared before they were split
 
 
-# Strips what the bot appended: the counts above, or the Scala bot's '-<total>'.
-_NAME_SUFFIX = re.compile(r"^(.*?)(?:-(?:[0-9]+|⚠️)|・(?=[🤍💀⚡])(?:🤍[0-9]+)?(?:💀[0-9]+)?⚡?)?$")
+def channel_name(base: str, count: int, masslog: bool = False) -> str:
+    """'⚔️・ᴇɴᴇᴍɪᴇs' + '・3⚡': how many are online, ⚡ during a mass log."""
+    return f"{base}・{count}{'⚡' if masslog else ''}"
+
+
+# Strips what the bot appended: the count above, the older '・🤍3💀2⚡', or the Scala bot's '-<total>'.
+_NAME_SUFFIX = re.compile(
+    r"^(.*?)(?:-(?:[0-9]+|⚠️)|・[0-9]+⚡?|・(?=[🤍💀⚡])(?:🤍[0-9]+)?(?:💀[0-9]+)?⚡?)?$")
 
 
 def base_name(channel_name: str, default: str) -> str:
@@ -100,12 +105,18 @@ class Row:
 
 @dataclass
 class OnlineList:
-    lines: list[str]
+    ally_lines: list[str]
+    enemy_lines: list[str]
     allies: int
     enemies: int
     total: int
     masslog: bool
     fresh_enemies: list[str] = field(default_factory=list)  # lines of enemies who logged in within the window
+
+    @property
+    def lines(self) -> list[str]:
+        """Both sides in one list, for a world that has no enemies channel."""
+        return self.ally_lines + self.enemy_lines
 
 
 MASSLOG_EVERYONE = "everyone"
@@ -155,12 +166,15 @@ def build(world_online: WorldOnline, lists: GuildLists, world: WorldConfig, guil
     allies = [r for r in rows if side(r) == "ally" and r.level >= world.online_allies_min]
     enemies = [r for r in rows if side(r) == "enemy" and r.level >= world.online_enemies_min]
     e = emojis.get
-    lines: list[str] = []
-    for title, icon, section in (("Allies", e("ally"), allies), ("Enemies", e("enemy"), enemies)):
-        if section:
-            lines.append(f"## {icon} {title} {len(section)}")
-            lines += with_headers(group_by_guild([(r.guild, r.line) for r in section]), lambda n: f"### No guild {n}")
-    return OnlineList(lines, len(allies), len(enemies), len(allies) + len(enemies),
+
+    def section(title: str, icon: str | None, rows_: list[Row]) -> list[str]:
+        if not rows_:
+            return []
+        return [f"## {icon} {title} {len(rows_)}"] + with_headers(
+            group_by_guild([(r.guild, r.line) for r in rows_]), lambda n: f"### No guild {n}")
+
+    return OnlineList(section("Allies", e("ally"), allies), section("Enemies", e("enemy"), enemies),
+                      len(allies), len(enemies), len(allies) + len(enemies),
                       is_masslog(len(fresh), masslog_min), fresh)
 
 

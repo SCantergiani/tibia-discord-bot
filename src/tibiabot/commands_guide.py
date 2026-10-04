@@ -35,8 +35,9 @@ SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
 ]
 
 CHANNELS = (
-    "📈 **online**: allies and enemies online, ⚡ fresh logins; the channel name shows 🤍 allies and 💀 enemies.\n"
-    "💀 **deaths**: ally/enemy deaths within seconds, pings, exiva lines, mass log alerts.\n"
+    "🤍 **allies**: allies online; the channel name shows how many.\n"
+    "⚔️ **enemies**: enemies online, ⚡ fresh logins, and mass log alerts; the name shows how many (⚡ during a mass log).\n"
+    "💀 **deaths**: ally/enemy deaths within seconds, pings, exiva lines.\n"
     "💖 **levels**: level-ups.  📊 **statistics**: bosses due, after server save.\n"
     "👑 **notifications**: buttons to get the Fullbless, Rare Boss, PVP and Masslog ping roles.\n"
     "📡 **status**: how often allies and enemies are really checked, and how fast deaths get posted."

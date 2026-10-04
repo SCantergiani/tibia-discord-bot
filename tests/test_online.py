@@ -29,12 +29,13 @@ def test_base_name():
     assert online.base_name("online-⚠️", "online") == "online"
 
 
-def test_channel_name_carries_the_counts_and_mass_log():
-    assert online.channel_name("📈・ᴏɴʟɪɴᴇ", 3, 2, False) == "📈・ᴏɴʟɪɴᴇ・🤍3💀2"
-    assert online.channel_name("📈・ᴏɴʟɪɴᴇ", 0, 4, True) == "📈・ᴏɴʟɪɴᴇ・💀4⚡"
-    assert online.channel_name("📈・ᴏɴʟɪɴᴇ", 0, 0, False) == "📈・ᴏɴʟɪɴᴇ"
-    name = online.channel_name("📈・ᴏɴʟɪɴᴇ", 1, 1, True)
-    assert online.channel_name(online.base_name(name, "online"), 2, 0, False) == "📈・ᴏɴʟɪɴᴇ・🤍2"
+def test_channel_name_carries_the_count_and_mass_log():
+    assert online.channel_name("🤍・ᴀʟʟɪᴇs", 3) == "🤍・ᴀʟʟɪᴇs・3"
+    assert online.channel_name("⚔️・ᴇɴᴇᴍɪᴇs", 0) == "⚔️・ᴇɴᴇᴍɪᴇs・0"
+    assert online.channel_name("⚔️・ᴇɴᴇᴍɪᴇs", 6, masslog=True) == "⚔️・ᴇɴᴇᴍɪᴇs・6⚡"
+    name = online.channel_name("⚔️・ᴇɴᴇᴍɪᴇs", 12, masslog=True)
+    assert online.channel_name(online.base_name(name, "enemies"), 2) == "⚔️・ᴇɴᴇᴍɪᴇs・2"
+    assert online.base_name("🤍・ᴀʟʟɪᴇs", "allies") == "🤍・ᴀʟʟɪᴇs"
 
 
 def test_masslog_needs_five_logins():
@@ -122,6 +123,18 @@ def test_build_lists_only_allies_and_enemies_grouped_by_guild():
     assert "`3min+`" in old_line
 
 
+def test_allies_and_enemies_get_separate_lists():
+    lists = GuildLists()
+    lists.hunted_players["foe"] = ListedPlayer("foe")
+    lists.allied_players["friend"] = ListedPlayer("friend")
+    wo = online.WorldOnline()
+    wo.update([OnlinePlayer("Foe", 300, "Knight"), OnlinePlayer("Friend", 200, "Druid")], first_poll=False, now=0)
+    built = online.build(wo, lists, WORLD, {}, now=60)
+    assert "Allies 1" in built.ally_lines[0] and not any("Foe" in l for l in built.ally_lines)
+    assert "Enemies 1" in built.enemy_lines[0] and not any("Friend" in l for l in built.enemy_lines)
+    assert built.lines == built.ally_lines + built.enemy_lines
+
+
 def test_nobody_listed_online_gives_an_empty_list():
     wo = online.WorldOnline()
     wo.update([OnlinePlayer("Random", 100, "Knight")], first_poll=False, now=0)
@@ -155,6 +168,7 @@ def test_level_up_flag_shows_and_clears_on_logout():
 # --- mass log alert ---------------------------------------------------------
 
 from dataclasses import replace  # noqa: E402
+from datetime import datetime, timedelta, timezone  # noqa: E402
 from types import SimpleNamespace  # noqa: E402
 
 import discord  # noqa: E402
@@ -219,9 +233,10 @@ async def test_alert_pings_the_chosen_audience_once_per_cooldown():
     channel = FakeChannel()
     role = SimpleNamespace(mention="<@&123>", id=123)
     guild = SimpleNamespace(id=1, get_channel=lambda _: channel, get_role=lambda _: role)
-    bot = SimpleNamespace(settings=SimpleNamespace(masslog_minutes=5), pollers=SimpleNamespace(listeners=[]))
+    bot = SimpleNamespace(settings=SimpleNamespace(masslog_minutes=5), pollers=SimpleNamespace(listeners=[]),
+                          state=SimpleNamespace(guild=lambda _: SimpleNamespace(worlds={})))
     cog = OnlineCog(bot)
-    built = online.OnlineList([], 0, 5, 5, True, ["a", "b", "c", "d"])
+    built = online.OnlineList([], [], 0, 5, 5, True, ["a", "b", "c", "d"])
     await cog._masslog_alert(guild, replace(WORLD, masslog_role="123"), built)
     await cog._masslog_alert(guild, replace(WORLD, masslog_role="123"), built)
     assert len(channel.sent) == 1 and channel.sent[0][0] == "<@&123>"
@@ -243,9 +258,9 @@ async def test_masslog_can_ping_the_member_role():
     guild = SimpleNamespace(id=5, get_channel=lambda _: channel, get_role=lambda rid: member_role if rid == 999 else None)
     info = SimpleNamespace(member_role="999")
     bot = SimpleNamespace(settings=SimpleNamespace(masslog_minutes=5), pollers=SimpleNamespace(listeners=[]),
-                          state=SimpleNamespace(guild=lambda _: SimpleNamespace(info=info)))
+                          state=SimpleNamespace(guild=lambda _: SimpleNamespace(info=info, worlds={})))
     cog = OnlineCog(bot)
-    await cog._masslog_alert(guild, replace(WORLD, masslog_role="members"), online.OnlineList([], 0, 5, 5, True, ["a"]))
+    await cog._masslog_alert(guild, replace(WORLD, masslog_role="members"), online.OnlineList([], [], 0, 5, 5, True, ["a"]))
     assert channel.sent[0][0] == "<@&999>"
 
 
@@ -253,3 +268,49 @@ def test_role_panel_names_the_member_role_for_mass_logs():
     embed, view = role_panel(replace(WORLD, masslog_role="members"), member_role="999")
     assert "Mass logs ping <@&999>" in embed.description
     assert "role:masslog_role:Inabra" not in [c["custom_id"] for r in view.to_components() for c in r["components"]]
+
+
+async def test_mass_log_alert_goes_to_the_enemies_channel():
+    deaths, enemies = FakeChannel(), FakeChannel()
+    world = replace(WORLD, masslog_role="everyone", enemies_channel="9")
+    guild = SimpleNamespace(id=7, get_channel=lambda cid: enemies if cid == 9 else deaths, get_role=lambda _: None)
+    bot = SimpleNamespace(settings=SimpleNamespace(masslog_minutes=5), pollers=SimpleNamespace(listeners=[]),
+                          state=SimpleNamespace(guild=lambda _: SimpleNamespace(worlds={})))
+    await OnlineCog(bot)._masslog_alert(guild, world, online.OnlineList([], ["x"], 0, 6, 6, True, ["a"] * 5))
+    assert len(enemies.sent) == 1 and deaths.sent == []
+    assert "**6** online" in enemies.sent[0][1]["embed"].description
+
+
+class FakeCache:
+    def __init__(self, last=None):
+        self.last = last
+        self.writes = 0
+
+    async def fetchval(self, *_):
+        return self.last
+
+    async def execute(self, *_):
+        self.writes += 1
+        self.last = datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+async def test_rename_waits_out_discords_limit_then_uses_the_latest_name():
+    from tibiabot.cogs import online as cog_module
+    cache = FakeCache(last=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=2))
+    cog = OnlineCog(SimpleNamespace(pollers=SimpleNamespace(listeners=[]), db=SimpleNamespace(cache=cache)))
+    renamed, slept = [], []
+
+    async def edit(name):
+        renamed.append(name)
+        channel.name = name
+    channel = SimpleNamespace(id=1, name="⚔️・ᴇɴᴇᴍɪᴇs・1", edit=edit)
+
+    async def sleep(seconds):
+        slept.append(seconds)
+        cog._wanted_name[1] = "⚔️・ᴇɴᴇᴍɪᴇs・5⚡"  # more logged in while waiting
+        cache.last -= cog_module.RENAME_COOLDOWN
+
+    cog._wanted_name[1] = "⚔️・ᴇɴᴇᴍɪᴇs・3"
+    await cog._rename(channel, "Inabra", sleep=sleep)
+    assert renamed == ["⚔️・ᴇɴᴇᴍɪᴇs・5⚡"] and cache.writes == 1
+    assert 175 < slept[0] <= 185  # 5 min 5 s minus the 2 min since the last rename
