@@ -68,6 +68,10 @@ class DeathsCog(commands.Cog):
     async def on_snapshot(self, snapshot: WorldSnapshot) -> None:
         found = await self.death_detector.detect(snapshot)
         ups = await self.level_detector.detect(snapshot)
+        world_online = self.bot.online.get(snapshot.world)
+        if world_online:
+            for up in ups:
+                world_online.set_flag(up.character.name, emojis.get("levelup"))
         if snapshot.first_tick:
             # Tibia only updates a sheet's level on logout, so the first poll sees
             # every level gained this session at once. Remember them, post none.

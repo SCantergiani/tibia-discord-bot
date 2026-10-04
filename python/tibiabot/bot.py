@@ -11,6 +11,7 @@ from tibiabot.config import Settings
 from tibiabot.db import repos
 from tibiabot.db.database import Database
 from tibiabot.lists.service import ListService
+from tibiabot.online import WorldOnline
 from tibiabot.poller import FastLane, PollerRegistry, WorldSnapshot
 from tibiabot.state import BotState
 from tibiabot.tibiadata.age_cache import CharacterAgeCache
@@ -20,7 +21,7 @@ from tibiabot.worlds import WorldList
 log = logging.getLogger(__name__)
 
 EXTENSIONS = ("tibiabot.cogs.setup", "tibiabot.cogs.lootsplit", "tibiabot.cogs.lists",
-              "tibiabot.cogs.deaths", "tibiabot.cogs.settings")
+              "tibiabot.cogs.deaths", "tibiabot.cogs.settings", "tibiabot.cogs.online")
 LIST_REVIEW_INTERVAL = 30 * 60
 CACHE_PRUNE_INTERVAL = 5 * 60
 ROSTER_REFRESH_INTERVAL = 10 * 60
@@ -45,6 +46,7 @@ class TibiaBot(commands.Bot):
                                       self._is_listed if settings.fresh_tibiadata else None, fast,
                                       relevant=self._is_listed, wants_neutrals=self._wants_neutrals)
         self.lists = ListService(self)
+        self.online: dict[str, WorldOnline] = {}  # world -> who is online, see cogs/online.py
         self.pollers.listeners.append(self._log_snapshot)
         self.pollers.listeners.append(self.lists.on_snapshot)
         self._ready_once = False

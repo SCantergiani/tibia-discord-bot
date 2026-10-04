@@ -47,7 +47,7 @@ Each phase ends runnable, with its ported specs green.
 | 1 ✅ | Loot split: `/lootsplit`, modal, settlement embed | `lootsplit/*`, `interactions/LootSplit`, `LootSplitEmbeds` | ~520 |
 | 2 ✅ | Hunted/allies lists: panels, add/remove/clear, tags, traded/moved/deleted flagging and review sweep | `hunted/*`, `panels/*`, `PanelButtons`, `PanelModals` | ~1500 |
 | 3 ✅ | Deaths + levels + `/settings` (the filters it sets): 60s poll, death detection, embeds/colours/pings, frags, screenshot button, auto-hunted, level posts | `TibiaBot.scala` scan/post stages, `Killers`, `DeathEmbeds`, `LevelTracker`, `LevelVisibility` | ~850 |
-| 4 | Online lists: roster, grouping, edit-in-place packing, channel/category rename with cooldown | `OnlineTracker`, `OnlineListEmbeds`, `OnlineListState`, `OnlineListGrouping` | ~900 |
+| 4 ✅ | Online lists: roster, grouping, edit-in-place packing, channel/category rename with cooldown | `OnlineTracker`, `OnlineListEmbeds`, `OnlineListState`, `OnlineListGrouping` | ~900 |
 | 5 | Boss predictions: daily killstatistics fetch, predictor, statistics post | `statistics/*`, `KillStatisticsSchedule`, `ServerSaveSchedule` | ~600 |
 | 6 | Respawn **web board only**: Discord OAuth, all `/dashboard` routes `board.html` calls, claims/queue/bookings/stamina, expiry sweep, sprite cache | `web/DiscordAuth`, `web/RespawnDashboardRoute`, `respawn/RespawnService`, `RespawnCatalogue` | ~3500 |
 
@@ -76,6 +76,12 @@ on top of the same service layer.
   author's site. On a world's first poll level-ups are remembered but not posted, so a fresh start
   doesn't flood the levels channel. Members opt in to pings with role buttons in the notifications
   channel; `/repair` posts them if missing.
+
+- Phase 4 notes: only the combined layout (one 📈 channel) is ported, not separate allies/enemies/
+  neutrals channels; messages are edited in place every 60 seconds without the Scala "stable packing";
+  online durations are counted from when this bot first saw a player (not kept across restarts), and
+  anyone already online at startup shows `+` and never gets :zap:. Players whose sheet isn't fetched
+  (neutrals, when hidden) are listed without their guild.
 
 ## Security carry-over
 

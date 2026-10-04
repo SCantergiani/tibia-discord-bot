@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 FULLBLESS, EXIVA, CHANNEL_FILTER, NEUTRAL, COMMAND_LOG = "fullbless", "exiva", "chanfilter", "neutral", "cmdlog"
+ONLINE_FILTER = "onlinefilter"
 SHOW_HIDE = [("Show", "show"), ("Hide", "hide")]
 SETTINGS_THUMBNAIL = f"{embeds.WIKI_FILE}Armillary_Sphere_(TibiaMaps).gif"
 
@@ -36,6 +37,7 @@ def settings_view() -> discord.ui.View:
     for action, label, emoji in ((FULLBLESS, "Fullbless", emojis.get("inq") or "🕯️"),
                                  (EXIVA, "Exiva Lists", emojis.get("exiva") or "🧭"),
                                  (CHANNEL_FILTER, "Channel Filters", "📊"),
+                                 (ONLINE_FILTER, "Online Filters", "📋"),
                                  (NEUTRAL, "Neutrals", "⚪"),
                                  (COMMAND_LOG, "Command Log", "🖥️")):
         view.add_item(SettingsButton(action, label=label, emoji=emoji))
@@ -83,13 +85,14 @@ def _show_hide(stored: str) -> str:
 
 class SettingsForm(discord.ui.Modal):
     TITLES = {FULLBLESS: "Fullbless level", EXIVA: "Exiva lists", CHANNEL_FILTER: "Channel level filters",
-              NEUTRAL: "Neutral players", COMMAND_LOG: "Command log"}
+              NEUTRAL: "Neutral players", COMMAND_LOG: "Command log", ONLINE_FILTER: "Online list filters"}
 
     def __init__(self, action: str, worlds: list[WorldConfig]):
         super().__init__(title=self.TITLES[action], custom_id=f"settingsform:{action}", timeout=None)
         self.action, self.worlds = action, worlds
         only = worlds[0] if len(worlds) == 1 else None
         self.world = self.level = self.option = self.levels = self.deaths = self.channel = None
+        self.online_inputs: dict[str, discord.ui.TextInput] = {}
         if action != COMMAND_LOG and len(worlds) > 1:
             self.world = discord.ui.Select(custom_id="world", placeholder="Pick a world", required=True,
                                            options=[discord.SelectOption(label=w.name, value=w.name) for w in worlds])
@@ -117,6 +120,12 @@ class SettingsForm(discord.ui.Modal):
                                            component=self.levels))
             self.add_item(discord.ui.Label(text="Neutral deaths", description="Deaths of players you don't track.",
                                            component=self.deaths))
+        elif action == ONLINE_FILTER:
+            for column, text in (("online_enemies_min", "Enemies"), ("online_allies_min", "Allies"),
+                                 ("online_neutrals_min", "Others")):
+                self.online_inputs[column] = _number(getattr(only, column) if only else None, "0")
+                self.add_item(discord.ui.Label(text=f"{text} in the online list", component=self.online_inputs[column],
+                                               description=f"Hide {text.lower()} below this level; 0 shows everyone."))
         elif action == COMMAND_LOG:
             self.channel = discord.ui.ChannelSelect(custom_id="channel", channel_types=[discord.ChannelType.text],
                                                     placeholder="Pick a channel", min_values=1, max_values=1)
@@ -183,6 +192,9 @@ class SettingsForm(discord.ui.Modal):
         elif self.action == NEUTRAL:
             choice(self.levels, "show_neutral_levels")
             choice(self.deaths, "show_neutral_deaths")
+        elif self.action == ONLINE_FILTER:
+            for column, field in self.online_inputs.items():
+                problem = problem or number(field, column)
         return changes, problem
 
     async def _command_log(self, bot: TibiaBot, interaction: discord.Interaction) -> None:
@@ -211,7 +223,8 @@ class SettingsForm(discord.ui.Modal):
 
 LABELS = {"fullbless_level": "Fullbless level", "exiva_list": "Exiva list", "levels_min": "Levels minimum",
           "deaths_min": "Deaths minimum", "show_neutral_levels": "Neutral levels",
-          "show_neutral_deaths": "Neutral deaths"}
+          "show_neutral_deaths": "Neutral deaths", "online_enemies_min": "Online enemies minimum",
+          "online_allies_min": "Online allies minimum", "online_neutrals_min": "Online others minimum"}
 
 
 def _shown(value: str | int) -> str:
