@@ -208,6 +208,7 @@ class SetupCog(commands.Cog):
         if missing := missing_permissions(guild.me):
             await interaction.followup.send(embed=embeds.error(self._missing_text(missing)))
             return
+        step = "preparing"
         try:
             pool = await self.bot.db.init_guild(guild.id)
             if await repos.get_world(pool, name):
@@ -215,8 +216,11 @@ class SetupCog(commands.Cog):
                     f"The channels for **{name}** have already been setup.\n"
                     f"Use `/repair` if you need to recreate channels for **{name}** that you have deleted."))
                 return
+            step = "creating the world's roles (needs **Manage Roles**)"
             roles = {col: await self._role(guild, f"{name} {suffix}", color) for col, suffix, color in WORLD_ROLES}
+            step = "creating the bot's category and channels (needs **Manage Channels**)"
             info = await self._admin_area(guild, pool)
+            step = f"creating the **{name}** category and its channels (needs **Manage Channels**)"
             category = await self._category(guild, name, {guild.me: WORLD_BOT_PERMS,
                                                           guild.default_role: EVERYONE_READ_ONLY})
             channels: dict[str, discord.TextChannel] = {}
@@ -233,6 +237,7 @@ class SetupCog(commands.Cog):
                 allypk_role=str(roles["allypk_role"].id), masslog_role=str(roles["masslog_role"].id),
                 statistics_channel=str(channels["statistics_channel"].id))
             await repos.save_world(pool, config)
+            step = "creating the moderator role and posting the role buttons"
             await self._moderator_role(guild, pool)
             await self._ensure_role_panel(guild, info, config)
             state = self.bot.state.guild(guild.id)
@@ -240,11 +245,16 @@ class SetupCog(commands.Cog):
             self.bot.state.set_world(guild.id, config)
             await self.bot.pollers.sync(self.bot.state.tracked_worlds())
         except discord.Forbidden as e:
-            log.warning("/init %s on %s refused by Discord: %s", name, guild.id, e)
+            log.warning("/init %s on %s refused while %s: %s", name, guild.id, step, e)
+            # The cached member can lag behind a role edit; ask Discord what I hold now.
+            fresh = await guild.fetch_member(guild.me.id)
+            missing = missing_permissions(fresh)
+            hint = (self._missing_text(missing) if missing else
+                    "My server permissions look right, so a channel or category override is blocking me, "
+                    "or my role sits below a role I need to manage (Server Settings → Roles: drag mine higher).")
             await interaction.followup.send(embed=embeds.error(
-                f"Discord refused part of setting up **{name}** ({e.text or 'Missing Permissions'}). "
-                f"Check that my role is above the roles I create, then run `/init {name}` again; "
-                "it reuses whatever was already made."))
+                f"Discord refused **{step}** for **{name}**.\n{hint}\n\nFix that, then run `/init {name}` "
+                "again: it reuses whatever was already made."))
             return
         await self._admin_log(guild, f"**{interaction.user.display_name}** has run `/init` for the world **{name}** "
                                      "and created its channels.")
