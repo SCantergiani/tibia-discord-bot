@@ -73,3 +73,34 @@ The Scala bot put an "Add Screenshot" button on deaths of enemies killed by play
 uploaded an image in the channel and the bot attached it to the death. Not ported: reading the upload
 needs the privileged message-content intent. Discord modals now support file uploads, which would avoid
 the intent: the button opens a form with a file field, and the image is stored in `death_screenshots`.
+
+## 5. Monthly KDA ranking for allies and enemies
+
+A leaderboard per month of **kills, assists and deaths** for every ally and enemy (listed players and
+members of listed guilds), e.g. `/ranking` or a post on the 1st of each month in the statistics channel:
+
+```
+🏆 October — Allies            K / A / D   KDA
+1. Friend One                 14 / 22 / 3   12.0
+2. ...
+💀 October — Enemies
+1. Supremo Alvesz              9 / 11 / 6    3.3
+```
+
+**Where the numbers come from:** Tibia has no kill counter, only each victim's death list, which names
+the killers (`killers`) and helpers (`assists`). So:
+- A **death** is counted when a listed player's death is detected (already happens).
+- A **kill / assist** is counted for every listed player named in the killers / assists of *any*
+  death the bot sees.
+
+**Needs:**
+1. Record assists, not just killers: `frag_event` stores killers only. Add an `assist_event` table, or a
+   `role` column (`kill`/`assist`) to a new per-guild table, written alongside the death post.
+2. Count kills on neutral victims too. Today frags are recorded only when the victim is listed, and
+   neutral sheets aren't fetched at all when neutrals are hidden. A kill of a neutral by an ally is
+   only visible if the neutral's sheet is fetched, so fetch neutral sheets again (the 5-minute cached
+   rate costs ~1 request/s on a busy world), or accept that the ranking counts PvP between listed sides
+   only. Decide which.
+3. Month boundaries at server save (10:00 Berlin) like the rest of the bot's days.
+4. KDA = (kills + assists) / max(deaths, 1); ties by kills.
+5. Players who leave a listed guild mid-month keep the numbers they earned while listed.

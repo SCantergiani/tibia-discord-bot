@@ -168,3 +168,27 @@ async def test_neutral_sheets_are_fetched_when_someone_wants_them():
     client.online = world("Enemy A", "Neutral")
     poller = WorldPoller("Antica", client, sheets, [], relevant=enemies_only, wants_neutrals=lambda w: True)
     assert set((await poller.tick()).characters) == {"Enemy A", "Neutral"}
+
+
+class CountingClient(FakeClient):
+    def __init__(self):
+        super().__init__()
+        self.calls = 0
+
+    async def world(self, name):
+        self.calls += 1
+        return await super().world(name)
+
+
+async def test_watch_spots_a_changed_online_list_and_the_poll_reuses_it():
+    client, sheets = CountingClient(), FakeSheets()
+    client.online = world("A")
+    poller = WorldPoller("Antica", client, sheets, [], priority=enemies_only, fast_lane=FastLane(5, 1))
+    await poller.tick()
+    assert await poller.watch() is False  # unchanged
+    client.online = world("A", "Enemy New")
+    assert await poller.watch() is True
+    calls = client.calls
+    snap = await poller.tick()
+    assert client.calls == calls  # the watched list was handed over, not fetched again
+    assert {p.name for p in snap.online} == {"A", "Enemy New"}

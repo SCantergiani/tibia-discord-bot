@@ -17,7 +17,7 @@ from typing import Awaitable, Callable
 
 from tibiabot.tibiadata.age_cache import CharacterAgeCache
 from tibiabot.tibiadata.client import NotFound, TibiaDataClient, TibiaDataError
-from tibiabot.tibiadata.models import Character, OnlinePlayer
+from tibiabot.tibiadata.models import Character, OnlinePlayer, World
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +56,10 @@ class FastLane:
     budget. Anyone who just logged out goes first: dying logs you out."""
     interval: float = 5
     max_per_second: float = 2
+    # How often to look at the world's online list alone. tibia.com rebuilds it
+    # once a minute; seeing the change within seconds starts a full poll at once,
+    # which is what makes a mass log alert as quick as the data allows.
+    watch_seconds: float = 5
 
     @property
     def budget(self) -> int:
@@ -75,7 +79,10 @@ class WorldPoller:
         self._online: list[OnlinePlayer] = []
         self._rotation = 0
         self._fast_task: asyncio.Task | None = None
+        self._watch_task: asyncio.Task | None = None
         self._listen_lock = asyncio.Lock()
+        self._changed = asyncio.Event()
+        self._prefetched: World | None = None
         self._client = client
         self._sheets = sheets
         self._listeners = listeners
@@ -89,16 +96,18 @@ class WorldPoller:
             self._task = asyncio.create_task(self._run(), name=f"poll:{self.world}")
         if self._fast and self._fast_task is None:
             self._fast_task = asyncio.create_task(self._run_fast(), name=f"fast:{self.world}")
+        if self._fast and self._fast.watch_seconds > 0 and self._watch_task is None:
+            self._watch_task = asyncio.create_task(self._run_watch(), name=f"watch:{self.world}")
 
     async def stop(self) -> None:
-        for task in (self._task, self._fast_task):
+        for task in (self._task, self._fast_task, self._watch_task):
             if task:
                 task.cancel()
                 try:
                     await task
                 except asyncio.CancelledError:
                     pass
-        self._task = self._fast_task = None
+        self._task = self._fast_task = self._watch_task = None
 
     async def _run(self) -> None:
         # Spread worlds across the minute so they don't all hit TibiaData at once.
@@ -111,7 +120,38 @@ class WorldPoller:
                 raise
             except Exception:
                 log.exception("Poll of %s failed", self.world)
-            await asyncio.sleep(max(1.0, self._interval - (time.monotonic() - started)))
+            # Wait out the interval, or less when the watcher saw the online list change.
+            self._changed.clear()
+            try:
+                await asyncio.wait_for(self._changed.wait(),
+                                       max(1.0, self._interval - (time.monotonic() - started)))
+            except asyncio.TimeoutError:
+                pass
+
+    async def _run_watch(self) -> None:
+        while True:
+            await asyncio.sleep(self._fast.watch_seconds)
+            if self._ticks == 0:
+                continue
+            try:
+                await self.watch()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("Watching %s failed", self.world)
+
+    async def watch(self) -> bool:
+        """Fetch just the online list; if it changed since the last full poll, hand
+        it over and wake the poll now. True when it changed."""
+        try:
+            world = await self._client.world(self.world)
+        except TibiaDataError:
+            return False
+        if {p.name: p.level for p in world.online_players} == {p.name: p.level for p in self._online}:
+            return False
+        self._prefetched = world
+        self._changed.set()
+        return True
 
     async def _run_fast(self) -> None:
         while True:
@@ -160,11 +200,13 @@ class WorldPoller:
                     log.exception("Listener failed on %s", self.world)
 
     async def tick(self) -> WorldSnapshot | None:
-        try:
-            world = await self._client.world(self.world)
-        except TibiaDataError as e:
-            log.warning("World %s unavailable this tick: %s", self.world, e)
-            return None
+        world, self._prefetched = self._prefetched, None
+        if world is None:
+            try:
+                world = await self._client.world(self.world)
+            except TibiaDataError as e:
+                log.warning("World %s unavailable this tick: %s", self.world, e)
+                return None
         now = time.time()
         online_names = {p.name for p in world.online_players}
         for name in online_names:

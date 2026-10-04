@@ -51,6 +51,14 @@ class OnlineCog(commands.Cog):
         world_online.update(snapshot.online, snapshot.first_tick)
         now = time.monotonic()
         for guild_id, world in self.bot.state.guilds_tracking(snapshot.world):
+            guild = self.bot.get_guild(guild_id)
+            if guild is None:
+                continue
+            # Mass logs are checked on every poll; the list itself is redrawn less often.
+            built = online.build(world_online, self.bot.lists.of(guild_id), world,
+                                 self._guild_of(guild_id, world_online))
+            if built.masslog:
+                asyncio.create_task(self._masslog_alert(guild, world, built), name=f"masslog:{guild_id}")
             if now - self._last_refresh.get(guild_id, 0) < REFRESH_SECONDS:
                 continue
             self._last_refresh[guild_id] = now
@@ -89,8 +97,6 @@ class OnlineCog(commands.Cog):
                     masslog = built.masslog and time.time() - self._started > MASSLOG_QUIET_AFTER_START
                     name = online.category_name(world.name, built.allies, built.enemies) + ("⚡" if masslog else "")
                     await self._rename(category, name, world.name)
-                if built.masslog:
-                    await self._masslog_alert(guild, world, built)
             except discord.HTTPException as e:
                 log.warning("Online list update failed in %s: %s", guild_id, e)
             except Exception:
