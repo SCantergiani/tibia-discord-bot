@@ -229,11 +229,16 @@ class ListForm(discord.ui.Modal):
                                                (self.reason.value or "").strip(), str(interaction.user.id), tag)
         else:
             outcome = await bot.lists.remove_many(interaction.guild, self.hunted, kind, names)
-        outcome.skipped = overflow
+        outcome.skipped += overflow
         await bot.lists.log_bulk(interaction.guild, self.hunted, adding, interaction.user.name, outcome, kind)
-        await interaction.followup.send(
-            embed=list_embeds.bulk(self.hunted, kind, adding, outcome, find_tag(tag) if adding else None),
-            ephemeral=True)
+        embed = list_embeds.bulk(self.hunted, kind, adding, outcome, find_tag(tag) if adding else None)
+        load = bot.lists.usage(interaction.guild_id)
+        if adding and load.tracked >= bot.settings.tracked_warn_at:
+            embed.add_field(name=":warning: That's a lot to track", inline=False, value=(
+                f"{load.text()}.\nOnly allies and enemies **online** cost anything: each gets a fast check, "
+                f"up to `FAST_POLL_MAX_PER_SECOND` requests a second. The more are online at once, the longer "
+                f"each waits for its turn and the more traffic the server sends."))
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     async def _info(self, bot: TibiaBot, interaction: discord.Interaction) -> None:
         name = self.name.value.strip().lower()

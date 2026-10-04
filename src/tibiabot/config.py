@@ -45,6 +45,7 @@ class Settings:
     poll_interval: int = 60
     fast_poll_seconds: float = 5
     fast_poll_max_per_second: float = 2
+    tracked_warn_at: int = 200  # warn when adds take a server past this many tracked characters
     emoji_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent / "data" / "emojis")
 
     @property
@@ -83,5 +84,6 @@ def load(env_file: str | os.PathLike | None = None) -> Settings:
         poll_interval=_int("POLL_INTERVAL_SECONDS", 60),
         fast_poll_seconds=float(os.getenv("FAST_POLL_SECONDS", "") or 5),
         fast_poll_max_per_second=float(os.getenv("FAST_POLL_MAX_PER_SECOND", "") or 2),
+        tracked_warn_at=_int("TRACKED_WARN_AT", 200),
         **({"emoji_dir": Path(emoji_dir)} if emoji_dir else {}),
     )

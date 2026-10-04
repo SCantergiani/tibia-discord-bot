@@ -72,7 +72,7 @@ async def service():
     state = BotState()
     state.set_world(GUILD_ID, WorldConfig("Antica", "1", "0", "0", "2", "3", "4", "5", "6", "7"))
     bot = SimpleNamespace(db=db, state=state, sheets=FakeSheets(), tibiadata=FakeTibiaData(),
-                          get_guild=lambda _: None)
+                          get_guild=lambda _: None, settings=settings, online={})
     svc = ListService(bot)
     yield svc
     await db.drop_guild(GUILD_ID)
@@ -174,3 +174,14 @@ async def test_removing_a_guild_forgets_its_roster(service):
     await service.add_many(FakeGuild(), True, "guild", ["Wrath"], "", "42")
     await service.remove_many(FakeGuild(), True, "guild", ["wrath"])
     assert not service.of(GUILD_ID).listed("Member One")
+
+
+async def test_usage_counts_tracked_characters_online(service):
+    from tibiabot.online import WorldOnline
+    from tibiabot.tibiadata.models import OnlinePlayer
+    await service.add_many(FakeGuild(), True, "player", ["Bubble"], "", "42")
+    wo = WorldOnline()
+    wo.update([OnlinePlayer("Bubble", 1, "Knight"), OnlinePlayer("Stranger", 1, "Knight")], first_poll=False)
+    service.bot.online = {"Antica": wo}
+    usage = service.usage(GUILD_ID)
+    assert (usage.tracked, usage.online) == (1, 1)

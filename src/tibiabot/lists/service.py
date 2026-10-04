@@ -17,6 +17,7 @@ import discord
 
 from tibiabot import adminlog
 from tibiabot.lists import embeds as list_embeds
+from tibiabot.lists import load as tracking_load
 from tibiabot.lists import repo
 from tibiabot.lists.models import (GRACE_BEFORE_REMOVAL, NO_TAG, BulkOutcome, Finding, GuildLists, ListedGuild,
                                    ListedPlayer, capitalize_words, find_tag, review, review_missing)
@@ -51,6 +52,17 @@ class ListService:
 
     def _tracked_worlds(self, guild_id: int) -> set[str]:
         return set(self.bot.state.guild(guild_id).worlds)
+
+    def usage(self, guild_id: int) -> tracking_load.Load:
+        """How much this server's lists cost right now (see lists/load.py)."""
+        tracked = self.of(guild_id).tracked()
+        online = sum(1 for world in self._tracked_worlds(guild_id) if world in self.bot.online
+                     for name in self.bot.online[world].players if name.lower() in tracked)
+        settings = self.bot.settings
+        fast = settings.fresh_tibiadata and settings.fast_poll_seconds > 0
+        return tracking_load.estimate(len(tracked), online,
+                                      settings.fast_poll_seconds if fast else None,
+                                      settings.fast_poll_max_per_second if fast else None)
 
     # --- lookups -------------------------------------------------------------
 
@@ -197,8 +209,10 @@ class ListService:
         sheets = await repo.cached_sheets(self.bot.db.cache, [p.name for p in players])
         counts = await repo.activity_counts(await self.bot.db.guild(guild.id))
         lines = list_embeds.player_lines(players, sheets, set(lists.allied_guilds), set(lists.hunted_guilds), hunted)
-        return (list_embeds.guilds_embeds(list(lists.guilds(hunted).values()), counts, hunted)
-                + list_embeds.players_embeds(lines, hunted))
+        pages = (list_embeds.guilds_embeds(list(lists.guilds(hunted).values()), counts, hunted)
+                 + list_embeds.players_embeds(lines, hunted))
+        pages[-1].set_footer(text=self.usage(guild.id).text())
+        return pages
 
     def added_by_name(self, guild: discord.Guild, user_id: str) -> str:
         member = guild.get_member(int(user_id)) if user_id.isdigit() else None
