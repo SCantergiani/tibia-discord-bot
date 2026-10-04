@@ -17,7 +17,7 @@ from tibiabot.worlds import WorldList
 
 log = logging.getLogger(__name__)
 
-EXTENSIONS = ("tibiabot.cogs.setup",)
+EXTENSIONS = ("tibiabot.cogs.setup", "tibiabot.cogs.lootsplit")
 
 
 class TibiaBot(commands.Bot):

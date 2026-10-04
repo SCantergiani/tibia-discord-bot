@@ -44,7 +44,7 @@ Each phase ends runnable, with its ported specs green.
 | # | Phase | Scala reference | Size (Scala lines) |
 |---|---|---|---|
 | 0 ✅ | Skeleton: config, DB init, TibiaData client with 300s character age cache, world poll loop, `/setup`, `/repair`, guild/world state | `Config`, `SchemaInitializer`, `tibiadata/*`, `setup/ChannelService`, `state/StreamState` | ~1500 |
-| 1 | Loot split: `/lootsplit`, modal, settlement embed | `lootsplit/*`, `interactions/LootSplit`, `LootSplitEmbeds` | ~520 |
+| 1 ✅ | Loot split: `/lootsplit`, modal, settlement embed | `lootsplit/*`, `interactions/LootSplit`, `LootSplitEmbeds` | ~520 |
 | 2 | Hunted/allies lists: panels, add/remove/clear, guild membership matching, traded flagging | `hunted/*`, `panels/*`, `PanelButtons`, `PanelModals` | ~1500 |
 | 3 | Deaths + levels: 60s poll, death detection, embeds/colours/pings, frags, screenshot button, auto-hunted, level posts | `TibiaBot.scala` scan/post stages, `Killers`, `DeathEmbeds`, `LevelTracker`, `LevelVisibility` | ~850 |
 | 4 | Online lists: roster, grouping, edit-in-place packing, channel/category rename with cooldown | `OnlineTracker`, `OnlineListEmbeds`, `OnlineListState`, `OnlineListGrouping` | ~900 |
