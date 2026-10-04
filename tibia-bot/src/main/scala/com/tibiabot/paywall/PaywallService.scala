@@ -133,7 +133,7 @@ final class PaywallService(
    *  nobody off on its own — it starts the grace period (see `applyRefresh`), so a
    *  bad sync costs days of headroom rather than anyone's tracking. */
   def callerIsSubscribed(userId: String): Boolean =
-    if (patreonNotConfigured || userId == ownerId || patreonSeatOverrideRepository.extraSeatsFor(userId) > 0) true
+    if (patreonNotConfigured || (ownerId.nonEmpty && userId == ownerId) || patreonSeatOverrideRepository.extraSeatsFor(userId) > 0) true
     else try patreonMemberRepository.isActivePatron(userId)
     catch { case _: Throwable => false }
 
@@ -205,7 +205,7 @@ final class PaywallService(
    *  owner always passes: unlimited seats, same reasoning as
    *  [[callerIsSubscribed]]'s bypass. */
   def canAssignSeat(userId: String, guildId: String, world: String): Boolean =
-    patreonNotConfigured || userId == ownerId || canAssignSeatPure(
+    patreonNotConfigured || (ownerId.nonEmpty && userId == ownerId) || canAssignSeatPure(
       patreonSeatRepository.seatFor(guildId, world).map(_.userId),
       patreonSeatRepository.seatsForUser(userId).size,
       userId,
@@ -309,7 +309,7 @@ final class PaywallService(
    *  meaningful for a paused seat regardless of who's claiming it) — only
    *  the seat-limit portion is bypassed for them, same as [[canAssignSeat]]. */
   def canReassignSeat(newUserId: String, guildId: String, world: String): Boolean =
-    !isActive(guildId, world) && (newUserId == ownerId || canReassignSeatPure(
+    !isActive(guildId, world) && ((ownerId.nonEmpty && newUserId == ownerId) || canReassignSeatPure(
       patreonSeatRepository.seatFor(guildId, world).exists(_.userId == newUserId),
       patreonSeatRepository.seatsForUser(newUserId).size,
       effectiveSeatLimit(newUserId)

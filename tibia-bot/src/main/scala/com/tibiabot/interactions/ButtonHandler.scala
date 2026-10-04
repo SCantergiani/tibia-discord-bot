@@ -512,9 +512,15 @@ object ButtonHandler extends StrictLogging {
       val payload = button.stripPrefix("patreon_release_")
       val (targetGuildId, worldRaw) = payload.span(_ != '_')
       val world = worldRaw.stripPrefix("_")
-      BotApp.paywallService.releaseSeat(targetGuildId, world)
+      // Both halves of the id are client-supplied, so the seat must be the
+      // clicker's own: the button's message being ephemeral is not a check.
+      val ownsSeat = BotApp.paywallService.seatsForUser(event.getUser.getId)
+        .exists(seat => seat.guildId == targetGuildId && seat.world == world)
+      if (ownsSeat) BotApp.paywallService.releaseSeat(targetGuildId, world)
       val embed = new EmbedBuilder()
-        .setDescription(s"${Config.yesEmoji} Your seat for **$world** has been released. Use `/setup` to assign it to a different discord and/or world.")
+        .setDescription(
+          if (ownsSeat) s"${Config.yesEmoji} Your seat for **$world** has been released. Use `/setup` to assign it to a different discord and/or world."
+          else s"${Config.noEmoji} That seat is not yours to release.")
         .setColor(presentation.Embeds.BrandColor)
         .build()
       event.getHook.editOriginalEmbeds(embed).setComponents().queue()

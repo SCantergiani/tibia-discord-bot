@@ -600,7 +600,7 @@ function renderSidebar(worlds) {
     const nameStyle = `color:rgb(${hr}, ${hg}, ${hb});background:rgba(${hr}, ${hg}, ${hb}, 0.12)`;
     const beIcon = w.battleyeGreen ? BE_ICON_GREEN : BE_ICON_YELLOW;
     const beLabel = w.battleyeGreen ? 'Green BattlEye' : 'Yellow BattlEye';
-    div.innerHTML = `<img class="be-icon" src="${beIcon}" alt="${beLabel}" title="${beLabel}"><span class="name" style="${nameStyle}" title="${w.edits15m} edits in the last 15m">${w.name}</span><span class="pop">${w.population}</span>`;
+    div.innerHTML = `<img class="be-icon" src="${beIcon}" alt="${beLabel}" title="${beLabel}"><span class="name" style="${nameStyle}" title="${esc(w.edits15m)} edits in the last 15m">${esc(w.name)}</span><span class="pop">${esc(w.population)}</span>`;
     div.addEventListener('click', () => { selectedWorld = w.name; render(); closeSidebar(); });
     el.appendChild(div);
   });
@@ -627,8 +627,8 @@ function renderDetail(worlds) {
     ? world.discords.map(d => {
         // Only present once a shared-world-cycle primary's dashboard has
         // secondary data merged in — omitted entirely on a plain deployment.
-        const botAvatar = d.bot ? `<img class="bot-avatar" src="${d.bot.avatarUrl}" alt="${d.bot.name}" title="${d.bot.name} (${d.bot.userId})">` : '';
-        return `<div class="discord-item">${botAvatar}<span>${d.name}</span><span class="sep">&middot;</span><i class="ti ti-crown owner-icon" aria-hidden="true"></i><span class="owner">${d.owner}</span><span class="gid">${d.id}</span></div>`;
+        const botAvatar = d.bot ? `<img class="bot-avatar" src="${safeAvatar(d.bot.avatarUrl)}" alt="${esc(d.bot.name)}" title="${esc(d.bot.name)} (${esc(d.bot.userId)})">` : '';
+        return `<div class="discord-item">${botAvatar}<span>${esc(d.name)}</span><span class="sep">&middot;</span><i class="ti ti-crown owner-icon" aria-hidden="true"></i><span class="owner">${esc(d.owner)}</span><span class="gid">${esc(d.id)}</span></div>`;
       }).join('')
     : '<div class="muted">No discords tracking this world</div>';
 }
@@ -753,7 +753,7 @@ function renderDetailGroup(title, note, nameHeader, rows, color, denominator, ke
     const share = r.total / groupTotal;
     const pct = share < 0.001 ? '&lt;1%' : `${(share * 100).toFixed(share < 0.1 ? 1 : 0)}%`;
     return `<div class="drow">
-      <span class="dname" title="${r.name}">${r.name}${r.note ? ` <span class="dim">${r.note}</span>` : ''}</span>
+      <span class="dname" title="${esc(r.name)}">${esc(r.name)}${r.note ? ` <span class="dim">${esc(r.note)}</span>` : ''}</span>
       <span class="dbar"><span style="width:${Math.max(1, share * 100).toFixed(1)}%;background:${r.color || color}"></span></span>
       <span class="dnum"${r.color ? ` style="color:${r.color}"` : ''}>${pct}</span>
       <span class="dnum">${fmtRate(r.perSecond)}</span>
@@ -1024,10 +1024,10 @@ function renderApiThroughput(bots) {
     head.className = 'bot-head';
     head.innerHTML = `
       <div class="bot-id">
-        <img class="bot-avatar" src="${bot.bot.avatarUrl}" alt="" title="${bot.bot.name} (${bot.bot.userId})">
-        <span class="bot-name">${bot.bot.name}</span>
+        <img class="bot-avatar" src="${safeAvatar(bot.bot.avatarUrl)}" alt="" title="${esc(bot.bot.name)} (${esc(bot.bot.userId)})">
+        <span class="bot-name">${esc(bot.bot.name)}</span>
         ${roleLabel ? `<span class="tag ${bot.bot.role === 'primary' ? 'active' : 'unconfirmed'}">${roleLabel}</span>` : ''}
-        <span class="bot-meta" title="${bot.bot.userId} &middot; ${fmtCount(bot.population)} tracked players">&middot; ${bot.worldCount} worlds &middot; ${bot.discordCount} discords &middot; ${timeAgo(bot.publishedAt)}</span>
+        <span class="bot-meta" title="${esc(bot.bot.userId)} &middot; ${fmtCount(bot.population)} tracked players">&middot; ${bot.worldCount} worlds &middot; ${bot.discordCount} discords &middot; ${timeAgo(bot.publishedAt)}</span>
       </div>
       <div class="bot-roll">
         ${API_SOURCES.map(s => `<div class="r"><div class="v">${rollFor(s.key)}</div><div class="k">${s.roll}</div></div>`).join('')}
@@ -1051,6 +1051,16 @@ function renderApiThroughput(bots) {
   body.appendChild(cards);
 }
 
+// Everything below that reaches innerHTML from the server is text somebody else
+// chose: guild names, Patreon names, log lines. Escaped for attributes too.
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+// Only Discord's CDN, so a forged avatar URL cannot become javascript: or a tracker.
+function safeAvatar(url) {
+  return /^https:\/\/cdn\.discordapp\.com\//.test(url || '') ? esc(url) : '';
+}
+
 function renderFeedRow(ev, groupCount) {
   const row = document.createElement('div');
   row.className = 'feed-row';
@@ -1059,8 +1069,8 @@ function renderFeedRow(ev, groupCount) {
     : '';
   row.innerHTML = `
     <div class="feed-time">${timeAgo(ev.at)}</div>
-    <span class="tag ${ev.tag}">${ev.tag}</span>
-    <div>${ev.text}</div>
+    <span class="tag ${esc(ev.tag)}">${esc(ev.tag)}</span>
+    <div>${esc(ev.text)}</div>
     ${badgeAndChevron}
   `;
   return row;
@@ -1127,9 +1137,9 @@ function renderLogList(elementId, events, emptyMessage) {
     const repeatBadge = ev.count > 1 ? `<span class="log-alert-repeat">&times;${ev.count}</span>` : '';
     row.innerHTML = `
       <div class="feed-time">${timeAgo(ev.at)}</div>
-      <span class="tag ${ev.level.toLowerCase()}">${ev.level}</span>
-      <span class="log-alert-logger">${ev.logger}</span>
-      <div style="flex:1;">${ev.message}</div>
+      <span class="tag ${esc(ev.level.toLowerCase())}">${esc(ev.level)}</span>
+      <span class="log-alert-logger">${esc(ev.logger)}</span>
+      <div style="flex:1;">${esc(ev.message)}</div>
       ${repeatBadge}
     `;
     el.appendChild(row);
@@ -1224,7 +1234,7 @@ function buildSupporterCard(supporter) {
   // renders for seatless supporters, so this is the only place a seat-holder
   // ever sees their linked Discord username.
   const discordBadge = supporter.discordUsername
-    ? `<span class="patreon-sup-discord"><i class="ti ti-brand-discord" aria-hidden="true"></i>${supporter.discordUsername}</span>`
+    ? `<span class="patreon-sup-discord"><i class="ti ti-brand-discord" aria-hidden="true"></i>${esc(supporter.discordUsername)}</span>`
     : '';
   // Only set (non-zero) when a dashboard admin has granted this user a
   // seat-count adjustment — see PaywallService.setExtraSeats. Sign-prefixed
@@ -1232,7 +1242,7 @@ function buildSupporterCard(supporter) {
   const extraSeatsBadge = supporter.extraSeats
     ? `<span class="patreon-sup-extra ${supporter.extraSeats > 0 ? 'positive' : 'negative'}">${supporter.extraSeats > 0 ? '+' : ''}${supporter.extraSeats} seats</span>`
     : '';
-  head.innerHTML = `<i class="ti ti-chevron-right patreon-sup-chevron" aria-hidden="true"></i><i class="ti ti-crown" aria-hidden="true"></i><span class="patreon-sup-name">${supporter.userName || supporter.userId || 'Unknown'}</span>${discordBadge}${extraSeatsBadge}${statusBadge}`;
+  head.innerHTML = `<i class="ti ti-chevron-right patreon-sup-chevron" aria-hidden="true"></i><i class="ti ti-crown" aria-hidden="true"></i><span class="patreon-sup-name">${esc(supporter.userName || supporter.userId || 'Unknown')}</span>${discordBadge}${extraSeatsBadge}${statusBadge}`;
   head.addEventListener('click', () => {
     if (expandedSupporters.has(key)) expandedSupporters.delete(key);
     else expandedSupporters.add(key);
@@ -1247,7 +1257,7 @@ function buildSupporterCard(supporter) {
     const note = document.createElement('div');
     note.className = 'patreon-empty';
     if (supporter.userId) {
-      const discordLabel = supporter.discordUsername ? `${supporter.discordUsername} (${supporter.userId})` : supporter.userId;
+      const discordLabel = supporter.discordUsername ? `${esc(supporter.discordUsername)} (${esc(supporter.userId)})` : esc(supporter.userId);
       note.innerHTML = `<i class="ti ti-brand-discord" aria-hidden="true"></i>Discord: ${discordLabel} &middot; no seats assigned yet`;
     } else {
       note.innerHTML = '<i class="ti ti-info-circle" aria-hidden="true"></i>Patreon supporter with no linked Discord account &mdash; can\'t assign a seat until they connect one';
@@ -1258,7 +1268,7 @@ function buildSupporterCard(supporter) {
   supporter.seats.forEach(seat => {
     const row = document.createElement('div');
     row.className = 'patreon-seat';
-    row.innerHTML = `<i class="ti ti-brand-discord" aria-hidden="true"></i><span class="patreon-seat-text">${seat.guildName}</span><span class="sep">&middot;</span><i class="ti ti-world" aria-hidden="true"></i><span class="patreon-seat-text">${seat.world}</span>`;
+    row.innerHTML = `<i class="ti ti-brand-discord" aria-hidden="true"></i><span class="patreon-seat-text">${esc(seat.guildName)}</span><span class="sep">&middot;</span><i class="ti ti-world" aria-hidden="true"></i><span class="patreon-seat-text">${esc(seat.world)}</span>`;
     const right = document.createElement('span');
     right.className = 'patreon-seat-right';
     right.innerHTML = seat.active ? '<span class="tag active">Active</span>' : '<span class="tag paused">Paused</span>';

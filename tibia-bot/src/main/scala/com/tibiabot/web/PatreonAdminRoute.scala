@@ -28,7 +28,7 @@ final class PatreonAdminRoute(
 ) extends StrictLogging {
 
   private def requireOwner(userId: String): Directive0 =
-    if (userId == ownerId) pass else complete(StatusCodes.Forbidden -> "Forbidden")
+    if (ownerId.nonEmpty && userId == ownerId) pass else complete(StatusCodes.Forbidden -> "Forbidden")
 
   private val ok = HttpEntity(ContentTypes.`application/json`, """{"ok":true}""")
 

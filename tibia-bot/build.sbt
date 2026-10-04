@@ -106,8 +106,6 @@ libraryDependencies += "org.apache.pekko" %% "pekko-http" % PekkoHttpVersion
 libraryDependencies += "org.apache.pekko" %% "pekko-http-spray-json" % PekkoHttpVersion
 libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.6"
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.6.3"
-libraryDependencies += "org.codehaus.janino" % "janino" % "3.1.12"
-libraryDependencies += "com.github.napstr" % "logback-discord-appender" % "1.0.0"
 libraryDependencies += "net.dv8tion" % "JDA" % "6.5.0"
 libraryDependencies += "club.minnced" % "discord-webhooks" % "0.8.4"
 libraryDependencies += "org.apache.commons" % "commons-text" % "1.15.0"
@@ -129,4 +127,3 @@ libraryDependencies += "org.jsoup" % "jsoup" % "1.23.2"
 libraryDependencies += "io.circe" %% "circe-core" % "0.14.16"
 libraryDependencies += "io.circe" %% "circe-parser" % "0.14.16"
 
-resolvers += "jitpack" at "https://jitpack.io"

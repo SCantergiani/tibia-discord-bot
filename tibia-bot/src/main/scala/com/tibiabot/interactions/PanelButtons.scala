@@ -8,6 +8,7 @@ import com.tibiabot.presentation.Embeds
 import com.tibiabot.{BotApp, Config}
 import com.typesafe.scalalogging.StrictLogging
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent
+import net.dv8tion.jda.api.entities.Member
 
 import scala.jdk.CollectionConverters._
 
@@ -40,23 +41,22 @@ object PanelButtons extends StrictLogging {
       case Some((panel, action)) =>
         val guild = event.getGuild
         if (guild == null) reply(event, s"${Config.noEmoji} That only works inside a server.")
-        else if (!permitted(event, panel)) reply(event, refusalFor(panel))
+        else if (!permitted(event.getUser.getId, event.getMember, guild.getId, panel)) reply(event, refusalFor(panel))
         else dispatch(event, panel, action)
     }
 
   /** Re-checked on every press rather than trusted from the command that drew the
    *  panel: an ephemeral panel is only pressable by whoever ran the command, but a
-   *  role can be taken away while it sits open. */
-  private def permitted(event: ButtonInteractionEvent, panel: Panel): Boolean = {
-    val member = event.getMember
+   *  role can be taken away while it sits open. PanelModals asks the same
+   *  question of every form submission, whose id is just as client-supplied. */
+  private[interactions] def permitted(userId: String, member: Member, guildId: String, panel: Panel): Boolean =
     // The admin panel is the one whose gate has nothing to do with this guild:
     // it is the bot's creator or nobody, whatever roles the server has given out.
-    if (panel == Panel.Admin) Permissions.isBotCreator(event.getUser.getId, BotApp.botOwner)
+    if (panel == Panel.Admin) Permissions.isBotCreator(userId, BotApp.botOwner)
     else if (panel == Panel.Settings) Permissions.hasManageServer(member)
-    else Permissions.isModerator(member, BotApp.moderatorRoleId(event.getGuild.getId))
-  }
+    else Permissions.isModerator(member, BotApp.moderatorRoleId(guildId))
 
-  private def refusalFor(panel: Panel): String =
+  private[interactions] def refusalFor(panel: Panel): String =
     if (panel == Panel.Admin) s"${Config.noEmoji} This is only available to the bot creator."
     else if (panel == Panel.Settings) s"${Config.noEmoji} You need **Manage Server** to change these settings."
     else s"${Config.noEmoji} You do not have permission to use this command."

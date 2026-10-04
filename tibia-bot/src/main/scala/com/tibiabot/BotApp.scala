@@ -660,7 +660,11 @@ object BotApp extends App with StrictLogging {
   // A shared-world-cycle secondary doesn't run its own dashboard at all —
   // its worlds/guilds are instead published (below) for the primary's
   // dashboard to merge in, so no HTTP server, no Caddy, no second domain needed.
-  if (Config.BotRole.current != Config.BotRole.Secondary) {
+  // A short secret can be brute-forced offline from any one session cookie, and
+  // a forged cookie for the owner's id opens /status and the Patreon admin routes.
+  if (Config.BotRole.current != Config.BotRole.Secondary && Config.Web.sessionSecret.length < 32) {
+    logger.error("Dashboards disabled: SESSION_SECRET must be at least 32 characters (e.g. `openssl rand -hex 32`)")
+  } else if (Config.BotRole.current != Config.BotRole.Secondary) {
     import org.apache.pekko.http.scaladsl.server.Directives._
     // The auth routes stay under /dashboard, where their redirect URI already
     // points; /status reaches them via the session cookie set for both paths.

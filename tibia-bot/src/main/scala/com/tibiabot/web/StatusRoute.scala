@@ -50,7 +50,7 @@ final class StatusRoute(
   }
 
   private def requireOwner(userId: String): Directive0 =
-    if (userId == ownerId) pass else complete(StatusCodes.Forbidden -> "Forbidden")
+    if (ownerId.nonEmpty && userId == ownerId) pass else complete(StatusCodes.Forbidden -> "Forbidden")
 
   private def laneJson(sender: discord.RateLimitedSender, adaptiveRefresh: Boolean = false): JsObject = JsObject(
     Map(

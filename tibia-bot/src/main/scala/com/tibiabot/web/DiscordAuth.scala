@@ -115,7 +115,7 @@ final class DiscordAuth(clientId: String, clientSecret: String, sessionSecret: S
       val payload = s"$userId.$expiryStr"
       for {
         expiry <- Try(expiryStr.toLong).toOption
-        if hmac(payload) == signature
+        if java.security.MessageDigest.isEqual(hmac(payload).getBytes("UTF-8"), signature.getBytes("UTF-8"))
         if expiry > Instant.now().getEpochSecond
       } yield userId
     case _ => None

@@ -73,7 +73,19 @@ final class JdaDiscordGateway(jda: JDA) extends DiscordGateway with com.typesafe
   def selfUserId: String = jda.getSelfUser.getId
   def selfUserName: String = jda.getSelfUser.getName
   def selfUserAvatarUrl: String = jda.getSelfUser.getEffectiveAvatarUrl
-  def applicationOwnerId: String = "313911524475535364"
+  /** BOT_OWNER_ID when set, else whoever owns the application on Discord's side
+   *  (the team owner for a team-owned app). Never a hardcoded id: a fallback here
+   *  hands owner rights on every install to whoever that id belongs to. "" when
+   *  neither answers, which leaves owner-only features unreachable rather than
+   *  open. */
+  lazy val applicationOwnerId: String =
+    if (com.tibiabot.Config.botOwnerId.nonEmpty) com.tibiabot.Config.botOwnerId
+    else Try(jda.retrieveApplicationInfo().complete()).toOption.flatMap { info =>
+      Option(info.getTeam).map(_.getOwnerId).orElse(Option(info.getOwner).map(_.getId))
+    }.filter(_.nonEmpty).getOrElse {
+      logger.warn("Bot owner unknown: set BOT_OWNER_ID to use /admin and /status")
+      ""
+    }
   def setWatchingActivity(text: String): Unit =
     jda.getPresence().setActivity(Activity.of(Activity.ActivityType.WATCHING, text))
 }

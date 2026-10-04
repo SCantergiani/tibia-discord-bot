@@ -69,7 +69,7 @@ services:
     # appendonly so cached keys survive a restart instead of forcing a cold
     # re-fetch. requirepass matches REDIS_PASSWORD, which matters once this is
     # reachable beyond this host's docker network.
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"]
     # Unset (the default) binds loopback only. Set REDIS_PUBLISH_HOST to this
     # host's private IP on a primary, so secondaries on the VPC can reach it.
     ports:

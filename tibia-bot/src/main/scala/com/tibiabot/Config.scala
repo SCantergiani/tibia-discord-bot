@@ -21,6 +21,9 @@ object Config {
   val redisPort: Int = discord.getInt("redis-port")
   val redisPassword: String = discord.getString("redis-password")
   val redisEnabled: Boolean = redisHost.nonEmpty
+  /** Discord user id granted /admin, /status and the paywall bypass; "" defers
+   *  to the application owner Discord reports. */
+  val botOwnerId: String = discord.getString("bot-owner-id").trim
 
   /** TTLs for how long cached TibiaData API responses are reused before
    *  re-fetching. Backed by the `cache { }` block in discord.conf
