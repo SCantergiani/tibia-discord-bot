@@ -51,6 +51,7 @@ def test_neutral_pve_death():
 def test_enemy_death_is_green_and_wants_a_fullbless_ping():
     post = deaths.build_death(victim(guild="Nexus"), died(creature("dragon")), lists(hunted_guilds=["nexus"]), WORLD, {})
     assert post.color == deaths.ENEMY and post.poke == "fullbless"
+    assert post.side_label == "🟥 ENEMY DIED"
     assert "*Member* of the [Nexus]" in post.description
 
 
@@ -64,6 +65,7 @@ def test_ally_killed_by_players_pings_pvp_and_lists_exivas_highest_first():
     post = deaths.build_death(victim(), died(player("Low Guy"), player("High Guy"), creature("dragon")),
                               lists(allied_players=["victim"]), world, {"low guy": 100, "high guy": 500})
     assert post.color == deaths.ALLY and post.poke == "allypk"
+    assert post.side_label == "🟩 ALLY DIED"
     assert "Killed <t:" in post.description
     assert "**[Low Guy [100]](" in post.description and "**[High Guy [500]](" in post.description
     exivas = [line for line in post.description.splitlines() if "exiva" in line]

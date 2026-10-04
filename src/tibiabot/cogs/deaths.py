@@ -153,6 +153,8 @@ class DeathsCog(commands.Cog):
                           post: deaths.DeathPost) -> discord.Message | None:
         embed = discord.Embed(title=post.title, url=post.url, description=post.description, color=post.color)
         embed.set_thumbnail(url=post.thumbnail)
+        if post.side_label:
+            embed.set_author(name=post.side_label)
         ping: discord.Role | None = None
         silent = False
         if post.poke == "nemesis":

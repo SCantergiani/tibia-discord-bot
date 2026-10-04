@@ -32,8 +32,8 @@ NEUTRAL = 3092790
 NEUTRAL_GUILD = 4540237
 CUSTOM_SORT = 14397256
 PVP_NEUTRAL = 14869218
-ALLY = 13773097
-ENEMY = 36941
+ALLY = 0x2ECC71   # green
+ENEMY = 0xE74C3C  # red
 NEMESIS = 11563775
 _NEUTRAL_COLORS = {NEUTRAL, PVP_NEUTRAL, NEUTRAL_GUILD, CUSTOM_SORT}
 
@@ -214,6 +214,11 @@ class DeathPost:
     def title(self) -> str:
         voc = vocation_emoji(self.vocation)
         return f"{voc} {self.victim} {voc}".strip()
+
+    @property
+    def side_label(self) -> str | None:
+        """A banner above the title, so whose death it is reads at a glance."""
+        return {ALLY: "🟩 ALLY DIED", ENEMY: "🟥 ENEMY DIED"}.get(self.color)
 
     @property
     def url(self) -> str:
