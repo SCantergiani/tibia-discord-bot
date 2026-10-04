@@ -51,11 +51,12 @@ class TibiaBot(commands.Bot):
                      if settings.fresh_tibiadata and settings.fast_poll_seconds > 0 else None)
         if self.rate:
             self.tibiadata.on_pushback = self.rate.on_pushback
-        fast = (FastLane(settings.fast_poll_seconds, settings.fast_poll_max_per_second, limiter=self.rate)
+        fast = (FastLane(settings.fast_poll_seconds, settings.fast_poll_max_per_second,
+                         ally_interval=settings.ally_poll_seconds, limiter=self.rate)
                 if self.rate else None)
         self.pollers = PollerRegistry(self.tibiadata, self.sheets, settings.poll_interval,
-                                      self._is_listed if settings.fresh_tibiadata else None, fast,
-                                      relevant=self._is_listed, wants_neutrals=self._wants_neutrals)
+                                      self._listed_side if settings.fresh_tibiadata else None, fast,
+                                      relevant=self._listed_side, wants_neutrals=self._wants_neutrals)
         self.lists = ListService(self)
         self.online: dict[str, WorldOnline] = {}  # world -> who is online, see cogs/online.py
         self.pollers.listeners.append(self._log_snapshot)
@@ -63,17 +64,21 @@ class TibiaBot(commands.Bot):
         self._ready_once = False
         self._background: list[asyncio.Task] = []
 
-    def _is_listed(self, world: str, name: str, sheet) -> bool:
-        """An ally or enemy of any server tracking this world: their deaths matter
-        most, so their sheet is re-fetched on every poll."""
+    def _listed_side(self, world: str, name: str, sheet) -> str | None:
+        """"enemy" or "ally" for any server tracking `world` (enemy wins: it is checked
+        more often), None for everyone else."""
+        lower = name.lower()
         guild = (sheet.guild_name or "").lower() if sheet else ""
+        side = None
         for guild_id, _ in self.state.guilds_tracking(world):
             lists = self.lists.of(guild_id)
-            if lists.listed(name):
-                return True
-            if guild and (guild in lists.hunted_guilds or guild in lists.allied_guilds):
-                return True
-        return False
+            if lower in lists.hunted_players or (guild and guild in lists.hunted_guilds) \
+                    or any(lower in lists.rosters.get(g, ()) for g in lists.hunted_guilds):
+                return "enemy"
+            if lower in lists.allied_players or (guild and guild in lists.allied_guilds) \
+                    or any(lower in lists.rosters.get(g, ()) for g in lists.allied_guilds):
+                side = "ally"
+        return side
 
     def _wants_neutrals(self, world: str) -> bool:
         """False only when every server tracking `world` hides neutral deaths and levels."""

@@ -55,14 +55,16 @@ class ListService:
 
     def usage(self, guild_id: int) -> tracking_load.Load:
         """How much this server's lists cost right now (see lists/load.py)."""
-        tracked = self.of(guild_id).tracked()
-        online = sum(1 for world in self._tracked_worlds(guild_id) if world in self.bot.online
-                     for name in self.bot.online[world].players if name.lower() in tracked)
+        lists = self.of(guild_id)
+        enemies, allies = lists.side_names(True), lists.side_names(False) - lists.side_names(True)
+        online = {name.lower() for world in self._tracked_worlds(guild_id) if world in self.bot.online
+                  for name in self.bot.online[world].players}
         settings = self.bot.settings
         fast = settings.fresh_tibiadata and settings.fast_poll_seconds > 0
         rate = self.bot.rate
-        return tracking_load.estimate(len(tracked), online,
+        return tracking_load.estimate(len(enemies | allies), len(online & enemies), len(online & allies),
                                       settings.fast_poll_seconds if fast else None,
+                                      settings.ally_poll_seconds if fast else None,
                                       (rate.rate if rate else settings.fast_poll_max_per_second) if fast else None)
 
     # --- lookups -------------------------------------------------------------

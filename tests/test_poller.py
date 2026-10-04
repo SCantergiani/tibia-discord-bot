@@ -115,7 +115,11 @@ from tibiabot.poller import FastLane  # noqa: E402
 
 
 def enemies_only(world, name, sheet):
-    return name.startswith("Enemy")
+    return "enemy" if name.startswith("Enemy") else None
+
+
+def sides(world, name, sheet):
+    return "enemy" if name.startswith("Enemy") else "ally" if name.startswith("Ally") else None
 
 
 async def test_fast_lane_waits_for_the_first_full_poll():
@@ -139,16 +143,36 @@ async def test_fast_lane_refreshes_only_priority_names_freshly_as_a_partial_snap
     assert seen[-1] is snap
 
 
-async def test_fast_lane_puts_the_just_logged_out_first_and_rotates_within_budget():
+async def test_fast_lane_puts_the_just_logged_out_first_then_the_longest_unchecked():
     client, sheets = FakeClient(), FakeSheets()
     client.online = world("Enemy A", "Enemy B", "Enemy C", "Enemy D")
     poller = WorldPoller("Antica", client, sheets, [], priority=enemies_only, fast_lane=FastLane(1, 2))
     await poller.tick()
     client.online = world("Enemy A", "Enemy B", "Enemy C")  # Enemy D logged out
     await poller.tick()
-    assert poller.fast_candidates() == ["Enemy D", "Enemy A"]
-    assert poller.fast_candidates() == ["Enemy D", "Enemy B"]
-    assert poller.fast_candidates() == ["Enemy D", "Enemy C"]
+    assert poller.fast_candidates(now=100) == ["Enemy D", "Enemy A"]
+    assert poller.fast_candidates(now=101) == ["Enemy D", "Enemy B"]
+    assert poller.fast_candidates(now=102) == ["Enemy D", "Enemy C"]
+
+
+async def test_enemies_every_interval_allies_every_ally_interval_enemies_first():
+    client, sheets = FakeClient(), FakeSheets()
+    client.online = world("Enemy A", "Ally B", "Neutral")
+    poller = WorldPoller("Antica", client, sheets, [], priority=sides,
+                         fast_lane=FastLane(5, 2, ally_interval=10))
+    await poller.tick()
+    assert poller.fast_candidates(now=0) == ["Enemy A", "Ally B"]
+    assert poller.fast_candidates(now=5) == ["Enemy A"]          # ally not due yet
+    assert poller.fast_candidates(now=10) == ["Enemy A", "Ally B"]
+
+
+async def test_when_the_budget_is_short_enemies_take_it():
+    client, sheets = FakeClient(), FakeSheets()
+    client.online = world("Ally A", "Enemy B", "Enemy C")
+    poller = WorldPoller("Antica", client, sheets, [], priority=sides, fast_lane=FastLane(1, 2, ally_interval=1))
+    await poller.tick()
+    assert poller.fast_candidates(now=0) == ["Enemy B", "Enemy C"]
+    assert poller.fast_candidates(now=1) == ["Enemy B", "Enemy C"]
 
 
 def test_budget_is_requests_per_interval():

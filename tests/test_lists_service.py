@@ -184,4 +184,4 @@ async def test_usage_counts_tracked_characters_online(service):
     wo.update([OnlinePlayer("Bubble", 1, "Knight"), OnlinePlayer("Stranger", 1, "Knight")], first_poll=False)
     service.bot.online = {"Antica": wo}
     usage = service.usage(GUILD_ID)
-    assert (usage.tracked, usage.online) == (1, 1)
+    assert (usage.tracked, usage.enemies_online, usage.allies_online) == (1, 1, 0)

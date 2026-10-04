@@ -53,8 +53,9 @@ class WorldSnapshot:
 
 
 Listener = Callable[[WorldSnapshot], Awaitable[None]]
-# (world, character name, last known sheet or None) -> re-fetch on every tick?
-Priority = Callable[[str, str, "Character | None"], bool]
+# (world, character name, last known sheet or None) -> "enemy", "ally" or None.
+# Truthy means "an ally or enemy": fetched fresh, and kept when neutrals are skipped.
+Priority = Callable[[str, str, "Character | None"], "str | None"]
 # world -> does any server tracking it want players who aren't allies or enemies?
 WantsNeutrals = Callable[[str], bool]
 
@@ -68,8 +69,9 @@ class FastLane:
     between full polls, only allies and enemies are re-fetched, at most
     `max_per_second` of them, rotating when there are more than one interval's
     budget. Anyone who just logged out goes first: dying logs you out."""
-    interval: float = 5
+    interval: float = 5          # how often each enemy is re-checked
     max_per_second: float = 2
+    ally_interval: float = 10    # allies can wait longer; enemies are always served first
     # When set, decides the rate (it adapts to how tibia.com answers) and spaces
     # the requests; max_per_second is then only its starting point.
     limiter: "AdaptiveRate | None" = None
@@ -95,7 +97,7 @@ class WorldPoller:
         self._wants_neutrals = wants_neutrals
         self._fast = fast_lane if priority else None
         self._online: list[OnlinePlayer] = []
-        self._rotation = 0
+        self._last_fast: dict[str, float] = {}  # name -> when the fast lane last checked it
         self._fast_task: asyncio.Task | None = None
         self._watch_task: asyncio.Task | None = None
         self._listen_lock = asyncio.Lock()
@@ -204,20 +206,29 @@ class WorldPoller:
                 log.exception("Fast poll of %s failed", self.world)
             await asyncio.sleep(max(0.5, self._fast.interval - (time.monotonic() - started)))
 
-    def fast_candidates(self) -> list[str]:
-        """This round's prioritised names: the most recently logged out first, then
-        a rotating slice of those online, within the per-interval budget."""
-        peek = self._sheets.peek
-        offline = sorted((n for n in set(self._last_seen) - {p.name for p in self._online}
-                          if self._priority(self.world, n, peek(n))),
-                         key=lambda n: -self._last_seen[n])
-        online = [p.name for p in self._online if self._priority(self.world, p.name, peek(p.name))]
-        picked = offline[:self._fast.budget]
-        room = self._fast.budget - len(picked)
-        if room > 0 and online:
-            start = self._rotation % len(online)
-            picked += (online[start:] + online[:start])[:room]
-            self._rotation = start + room
+    def fast_candidates(self, now: float | None = None) -> list[str]:
+        """This round's names, within the budget: everyone due again (enemies every
+        `interval`, allies every `ally_interval`), enemies before allies, and on each
+        side the just-logged-out (dying logs you out) before the longest unchecked."""
+        now = time.monotonic() if now is None else now
+        online = {p.name for p in self._online}
+        due = []
+        for name in set(self._last_seen) | online:
+            side = self._priority(self.world, name, self._sheets.peek(name))
+            if not side:
+                continue
+            every = self._fast.interval if side == "enemy" else self._fast.ally_interval
+            last = self._last_fast.get(name, float("-inf"))
+            # Rounds are `interval` apart, so a check a hair short of due would otherwise
+            # wait a whole extra round: allow a fifth of a round's slack.
+            if now - last < every - self._fast.interval / 5:
+                continue
+            due.append((side != "enemy", name in online, last, -self._last_seen.get(name, 0.0), name))
+        due.sort()
+        picked = [entry[-1] for entry in due[:self._fast.budget]]
+        for name in picked:
+            self._last_fast[name] = now
+        self._last_fast = {n: t for n, t in self._last_fast.items() if n in self._last_seen or n in online}
         return picked
 
     async def fast_tick(self) -> WorldSnapshot | None:

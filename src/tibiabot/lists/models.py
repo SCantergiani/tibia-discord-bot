@@ -47,14 +47,16 @@ class GuildLists:
     # guild page: how a member is recognised without fetching their sheet.
     rosters: dict[str, set[str]] = field(default_factory=dict)
 
-    def tracked(self) -> set[str]:
-        """Every character the bot follows for this server: listed players plus every
-        member of a listed guild (lowercase names)."""
-        names = set(self.hunted_players) | set(self.allied_players)
-        for guild, members in self.rosters.items():
-            if guild in self.hunted_guilds or guild in self.allied_guilds:
-                names |= members
+    def side_names(self, hunted: bool) -> set[str]:
+        """Enemies (hunted=True) or allies: listed players plus members of listed guilds."""
+        names = set(self.players(hunted))
+        for guild in self.guilds(hunted):
+            names |= self.rosters.get(guild, set())
         return names
+
+    def tracked(self) -> set[str]:
+        """Every character the bot follows for this server (lowercase names)."""
+        return self.side_names(True) | self.side_names(False)
 
     def listed(self, name: str) -> bool:
         """An ally or enemy: on a list, or in a listed guild's roster."""
