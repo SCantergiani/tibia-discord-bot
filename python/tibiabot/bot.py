@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 EXTENSIONS = ("tibiabot.cogs.setup", "tibiabot.cogs.lootsplit", "tibiabot.cogs.lists",
               "tibiabot.cogs.deaths", "tibiabot.cogs.settings", "tibiabot.cogs.online",
-              "tibiabot.cogs.statistics")
+              "tibiabot.cogs.statistics", "tibiabot.cogs.watchdog")
 LIST_REVIEW_INTERVAL = 30 * 60
 CACHE_PRUNE_INTERVAL = 5 * 60
 ROSTER_REFRESH_INTERVAL = 10 * 60

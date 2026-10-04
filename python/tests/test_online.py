@@ -19,6 +19,9 @@ def test_duration_text():
 
 
 def test_base_name():
+    assert online.base_name("📈・ᴏɴʟɪɴᴇ・🤍3💀2⚡", "online") == "📈・ᴏɴʟɪɴᴇ"
+    assert online.base_name("📈・ᴏɴʟɪɴᴇ・💀2", "online") == "📈・ᴏɴʟɪɴᴇ"
+    assert online.base_name("📈・ᴏɴʟɪɴᴇ", "online") == "📈・ᴏɴʟɪɴᴇ"
     assert online.base_name("online-42", "online") == "online"
     assert online.base_name("ɴᴇᴍᴇsɪs-5", "enemies") == "ɴᴇᴍᴇsɪs"
     assert online.base_name("allies", "allies") == "allies"
@@ -26,11 +29,12 @@ def test_base_name():
     assert online.base_name("online-⚠️", "online") == "online"
 
 
-def test_category_name():
-    assert online.category_name("Antica", 5, 2) == "Antica・🤍5💀2"
-    assert online.category_name("Antica", 5, 0) == "Antica・🤍5"
-    assert online.category_name("Antica", 0, 3) == "Antica・💀3"
-    assert online.category_name("Antica", 0, 0) == "Antica"
+def test_channel_name_carries_the_counts_and_mass_log():
+    assert online.channel_name("📈・ᴏɴʟɪɴᴇ", 3, 2, False) == "📈・ᴏɴʟɪɴᴇ・🤍3💀2"
+    assert online.channel_name("📈・ᴏɴʟɪɴᴇ", 0, 4, True) == "📈・ᴏɴʟɪɴᴇ・💀4⚡"
+    assert online.channel_name("📈・ᴏɴʟɪɴᴇ", 0, 0, False) == "📈・ᴏɴʟɪɴᴇ"
+    name = online.channel_name("📈・ᴏɴʟɪɴᴇ", 1, 1, True)
+    assert online.channel_name(online.base_name(name, "online"), 2, 0, False) == "📈・ᴏɴʟɪɴᴇ・🤍2"
 
 
 def test_masslog_thresholds():
@@ -51,15 +55,6 @@ def test_with_headers():
     lines = online.with_headers([("Big", ["c"]), ("", ["a"])], lambda n: f"### Others {n}")
     assert lines[0].startswith("### [Big](") and lines[0].endswith(" 1")
     assert lines[1:] == ["c", "### Others 1", "a"]
-
-
-def test_combined_body_headers_only_when_categories_mix():
-    assert online.combined_body(["a"], [], [], []) == ["a"]
-    body = online.combined_body(["a"], ["e"], ["n"], ["### Others 1", "n"])
-    assert "**Allies**" in body[0] and body[1] == "a" and "**Enemies**" in body[2] and body[3] == "e"
-    assert body[4:] == ["### Others 1", "n"]
-    # only neutrals with no guild headers: the lone "Others" header is dropped
-    assert online.combined_body([], [], ["n"], ["### Others 1", "n"]) == ["n"]
 
 
 # --- packing ----------------------------------------------------------------
@@ -105,7 +100,7 @@ def test_realistic_roster_stays_inside_discord_caps():
 
 # --- the list for one server ------------------------------------------------
 
-def test_build_sections_counts_and_zap():
+def test_build_lists_only_allies_and_enemies_grouped_by_guild():
     lists = GuildLists()
     lists.hunted_guilds["nexus"] = ListedGuild("nexus")
     lists.allied_players["friend"] = ListedPlayer("friend")
@@ -116,31 +111,45 @@ def test_build_sections_counts_and_zap():
               first_poll=False, now=1100)
     guild_of = {"Old Enemy": "Nexus", "New Enemy": "Nexus", "Friend": "", "Random": ""}
     built = online.build(wo, lists, WORLD, guild_of, now=1200)
-    assert (built.allies, built.enemies, built.total) == (1, 2, 3 + 1)
+    assert (built.allies, built.enemies, built.total) == (1, 2, 3)
     text = "\n".join(built.lines)
-    assert text.index("**Allies**") < text.index("Friend") < text.index("**Enemies**") < text.index("Random")
+    assert "Random" not in text
+    assert built.lines[0].startswith("## ") and "Allies 1" in built.lines[0]
+    assert text.index("Friend") < text.index("Enemies 2") < text.index("### [Nexus]") < text.index("New Enemy")
     new_line = next(l for l in built.lines if "New Enemy" in l)
     old_line = next(l for l in built.lines if "Old Enemy" in l)
     assert ":zap:" in new_line and ":zap:" not in old_line  # unknown start never counts as a fresh login
     assert "`3min+`" in old_line
 
 
-def test_level_filters_hide_low_players():
+def test_nobody_listed_online_gives_an_empty_list():
+    wo = online.WorldOnline()
+    wo.update([OnlinePlayer("Random", 100, "Knight")], first_poll=False, now=0)
+    assert online.build(wo, GuildLists(), WORLD, {}, now=60).lines == []
+
+
+def test_level_filters_hide_low_enemies():
+    lists = GuildLists()
+    lists.hunted_players["low"] = ListedPlayer("low")
+    lists.hunted_players["high"] = ListedPlayer("high")
     wo = online.WorldOnline()
     wo.update([OnlinePlayer("Low", 10, "Knight"), OnlinePlayer("High", 500, "Knight")], first_poll=False, now=0)
-    world = WorldConfig("Inabra", "1", "0", "0", "2", "3", "4", "5", "6", "7", online_neutrals_min=100)
-    built = online.build(wo, GuildLists(), world, {}, now=60)
-    assert built.total == 1 and "High" in "\n".join(built.lines)
+    world = WorldConfig("Inabra", "1", "0", "0", "2", "3", "4", "5", "6", "7", online_enemies_min=100)
+    built = online.build(wo, lists, world, {}, now=60)
+    assert built.enemies == 1 and "High" in "\n".join(built.lines) and "Low" not in "\n".join(built.lines)
 
 
 def test_level_up_flag_shows_and_clears_on_logout():
+    lists = GuildLists()
+    lists.allied_players["bubble"] = ListedPlayer("bubble")
     wo = online.WorldOnline()
     wo.update([OnlinePlayer("Bubble", 101, "Knight")], first_poll=False, now=0)
     wo.set_flag("Bubble", "⬆️")
-    assert "⬆️" in online.build(wo, GuildLists(), WORLD, {}, now=10).lines[0]
+    line = lambda: next(l for l in online.build(wo, lists, WORLD, {}, now=40).lines if "Bubble" in l)
+    assert "⬆️" in line()
     wo.update([], first_poll=False, now=20)
     wo.update([OnlinePlayer("Bubble", 101, "Knight")], first_poll=False, now=30)
-    assert "⬆️" not in online.build(wo, GuildLists(), WORLD, {}, now=40).lines[0]
+    assert "⬆️" not in line()
 
 
 # --- mass log alert ---------------------------------------------------------

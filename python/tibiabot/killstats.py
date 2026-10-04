@@ -125,12 +125,6 @@ class KillStatsStore:
             out.setdefault(r["race"].lower(), []).append((r["save_day"], r["killed"]))
         return out
 
-    async def kills_on(self, world: str, day: date) -> list[tuple[str, int]]:
-        catalogued = {b.race.lower() for b in bosses.catalogue()}
-        rows = await self.cache.fetch("SELECT race, killed FROM kill_statistics_boss WHERE world = $1 AND "
-                                      "save_day = $2 AND killed > 0 ORDER BY killed DESC, race ASC", world, day)
-        return [(r["race"], r["killed"]) for r in rows if r["race"].lower() not in catalogued][:TOP_KILLS]
-
     async def prune(self, keep_days: int = 400) -> None:
         cutoff = date.today() - timedelta(days=keep_days)
         await self.cache.execute("DELETE FROM kill_statistics_boss WHERE save_day < $1", cutoff)

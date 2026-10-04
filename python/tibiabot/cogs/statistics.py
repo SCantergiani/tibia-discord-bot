@@ -1,4 +1,4 @@
-"""The daily statistics post (after server save) and `/bosses`.
+"""The daily Bosses Due post (after server save) and `/bosses`.
 
 Kill statistics are collected every 10 minutes until each tracked world's day is
 filed; the post goes to each world's 📊 channel between 10:00 and 10:45 Berlin,
@@ -18,7 +18,6 @@ from discord.ext import commands
 
 from tibiabot import bosses, creatures, embeds, emojis, killstats
 from tibiabot.db import repos
-from tibiabot.db.repos import WorldConfig
 from tibiabot.serversave import BERLIN, last_server_save
 
 if TYPE_CHECKING:
@@ -28,8 +27,6 @@ log = logging.getLogger(__name__)
 
 POST_FROM, POST_UNTIL = time(10, 0), time(10, 45)
 PREDICTION_COLOR = 11563775
-SUMMARY_COLOR = embeds.BRAND_COLOR
-CREATURE_COLOR = 4540237
 
 
 def game_day(now: datetime) -> date:
@@ -40,12 +37,6 @@ def game_day(now: datetime) -> date:
 def closed_day(now: datetime) -> date:
     """The game day that ended at the last server save; what the daily post reports."""
     return game_day(now) - timedelta(days=1)
-
-
-def wiki_link(name: str) -> str:
-    """Kill statistics name races in the plural ("Vexclaws") and the wiki titles pages
-    in the singular, so a naive link is usually dead: the name is shown plain."""
-    return f"**{creatures.title_case(name)}**"
 
 
 def _relative(when: datetime) -> str:
@@ -80,23 +71,6 @@ def bosses_embed(world: str, predictions: list[bosses.BossPrediction], awaiting:
     return embed
 
 
-def summary_embed(s: killstats.DaySummary) -> discord.Embed:
-    lines = [f":skull: **{s.player_deaths:,}** players died",
-             f":crossed_swords: **{s.total_killed:,}** creatures killed"]
-    if s.most_killed:
-        lines.append(f":dagger: Most killed: {wiki_link(s.most_killed[0])} (**{s.most_killed[1]:,}**)")
-    if s.deadliest:
-        lines.append(f":drop_of_blood: Deadliest: {wiki_link(s.deadliest[0])} killed **{s.deadliest[1]:,}** players")
-    return discord.Embed(title=f"📊 {s.world} — {s.day:%A %d %B}", description="\n".join(lines), color=SUMMARY_COLOR)
-
-
-def creatures_embed(kills: list[tuple[str, int]]) -> discord.Embed | None:
-    if not kills:
-        return None
-    rows = [f"**{n:,}** {creatures.title_case(race)}" for race, n in kills]
-    return discord.Embed(description="## :feet: Creature Kills\n" + "\n".join(rows), color=CREATURE_COLOR)
-
-
 class StatisticsCog(commands.Cog):
     def __init__(self, bot: TibiaBot):
         self.bot = bot
@@ -106,18 +80,10 @@ class StatisticsCog(commands.Cog):
         await killstats.collect(self.bot.tibiadata, self.store, sorted(self.bot.state.tracked_worlds()))
 
     async def report(self, world: str, day: date) -> list[discord.Embed]:
-        """The post for `day`; bosses are predicted for the day after it, i.e. today."""
+        """The post after `day`'s server save: which bosses are due today."""
         sightings = await self.store.sightings(world)
-        out = []
-        day_summary = await self.store.summary(world, day)
-        if day_summary:
-            out.append(summary_embed(day_summary))
-        out.append(bosses_embed(world, bosses.predict_all(sightings, day + timedelta(days=1)),
-                                bosses.awaiting_first_sighting(sightings)))
-        kills = creatures_embed(await self.store.kills_on(world, day))
-        if kills:
-            out.append(kills)
-        return out
+        return [bosses_embed(world, bosses.predict_all(sightings, day + timedelta(days=1)),
+                             bosses.awaiting_first_sighting(sightings))]
 
     async def post_due(self, now: datetime | None = None) -> None:
         now = now or datetime.now(timezone.utc)

@@ -49,7 +49,7 @@ Each phase ends runnable, with its ported specs green.
 | 3 ✅ | Deaths + levels + `/settings` (the filters it sets): 60s poll, death detection, embeds/colours/pings, frags, screenshot button, auto-hunted, level posts | `TibiaBot.scala` scan/post stages, `Killers`, `DeathEmbeds`, `LevelTracker`, `LevelVisibility` | ~850 |
 | 4 ✅ | Online lists: roster, grouping, edit-in-place packing, channel/category rename with cooldown | `OnlineTracker`, `OnlineListEmbeds`, `OnlineListState`, `OnlineListGrouping` | ~900 |
 | 5 ✅ | Boss predictions: daily killstatistics fetch, predictor, statistics post | `statistics/*`, `KillStatisticsSchedule`, `ServerSaveSchedule` | ~600 |
-| 6 | Respawn **web board only**: Discord OAuth, all `/dashboard` routes `board.html` calls, claims/queue/bookings/stamina, expiry sweep, sprite cache | `web/DiscordAuth`, `web/RespawnDashboardRoute`, `respawn/RespawnService`, `RespawnCatalogue` | ~3500 |
+| 6 ⏸️ (on hold) | Respawn **web board only**: Discord OAuth, all `/dashboard` routes `board.html` calls, claims/queue/bookings/stamina, expiry sweep, sprite cache | `web/DiscordAuth`, `web/RespawnDashboardRoute`, `respawn/RespawnService`, `RespawnCatalogue` | ~3500 |
 
 Phase 6 must keep the JSON contracts `board.html` relies on exactly (routes and shapes
 are listed in the porting map); the two unused routes (`/extend`, `/bookings`) are
@@ -90,6 +90,11 @@ on top of the same service layer.
   world bosses (cycles of months) need their next kill. Predictions count from the current game day.
   `/bosses` shows them on demand. Creature names are not linked (plural race names don't match wiki
   titles).
+
+- Changed after Phase 5 at the owner's request: the online list shows **only allies and enemies**
+  (grouped by guild), with the ally/enemy counts and ⚡ as a suffix on the 📈 channel name instead of
+  the total player count, and the world category keeps its plain name. The daily post is Bosses Due
+  only. New `/watchdog` posts a TibiaCardinal Watchdog room link for a party. Phase 6 is on hold.
 
 ## Security carry-over
 

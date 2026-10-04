@@ -89,14 +89,16 @@ class OnlineCog(commands.Cog):
             try:
                 built = online.build(world_online, self.bot.lists.of(guild_id), world,
                                      self._guild_of(guild_id, world_online))
-                lines = built.lines or ["*Nobody is online right now.*"]
+                lines = built.lines or ["*No allies or enemies are online right now.*"]
                 await self._post(channel, online.pack_messages(lines))
-                await self._rename(channel, f"{online.base_name(channel.name, 'online')}-{built.total}", world.name)
+                masslog = built.masslog and time.time() - self._started > MASSLOG_QUIET_AFTER_START
+                name = online.channel_name(online.base_name(channel.name, "online"), built.allies, built.enemies,
+                                           masslog)
+                await self._rename(channel, name, world.name)
+                # The counts used to sit on the world's category; put its plain name back.
                 category = guild.get_channel(int(world.category)) if world.category.isdigit() else None
                 if isinstance(category, discord.CategoryChannel):
-                    masslog = built.masslog and time.time() - self._started > MASSLOG_QUIET_AFTER_START
-                    name = online.category_name(world.name, built.allies, built.enemies) + ("⚡" if masslog else "")
-                    await self._rename(category, name, world.name)
+                    await self._rename(category, world.name, world.name)
             except discord.HTTPException as e:
                 log.warning("Online list update failed in %s: %s", guild_id, e)
             except Exception:

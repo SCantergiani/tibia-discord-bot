@@ -92,9 +92,3 @@ async def test_each_day_is_filed_once_and_failures_are_retried(store):
     assert await killstats.collect(FakeClient(TibiaDataError("down")), store, [WORLD], LATE) == []
     assert await killstats.collect(FakeClient(page(0, 500)), store, [WORLD], LATE) == [WORLD]
     assert await killstats.collect(FakeClient(page(0, 999)), store, [WORLD], LATE) == []
-
-
-@pg
-async def test_creature_kills_exclude_bosses(store):
-    await store.file(page(2, 500), date(2026, 10, 3))
-    assert await store.kills_on(WORLD, date(2026, 10, 3)) == [("rats", 500)]

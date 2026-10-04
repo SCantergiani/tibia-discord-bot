@@ -64,13 +64,14 @@ def duration_text(seconds: int, known: bool) -> str:
     return f"`{text}{'' if known else '+'}`"
 
 
-def category_name(world: str, allies: int, enemies: int) -> str:
-    a = f"🤍{allies}" if allies > 0 else ""
-    e = f"💀{enemies}" if enemies > 0 else ""
-    return f"{world}{'・' if allies > 0 or enemies > 0 else ''}{a}{e}"
+def channel_name(base: str, allies: int, enemies: int, masslog: bool) -> str:
+    """'📈・ᴏɴʟɪɴᴇ' + '・🤍3💀2⚡': allies and enemies online, ⚡ during a mass log."""
+    suffix = (f"🤍{allies}" if allies else "") + (f"💀{enemies}" if enemies else "") + ("⚡" if masslog else "")
+    return f"{base}・{suffix}" if suffix else base
 
 
-_NAME_SUFFIX = re.compile(r"^(.*?)(?:-(?:[0-9]+|⚠️))?$")
+# Strips what the bot appended: the counts above, or the Scala bot's '-<total>'.
+_NAME_SUFFIX = re.compile(r"^(.*?)(?:-(?:[0-9]+|⚠️)|・(?=[🤍💀⚡])(?:🤍[0-9]+)?(?:💀[0-9]+)?⚡?)?$")
 
 
 def base_name(channel_name: str, default: str) -> str:
@@ -151,20 +152,16 @@ def build(world_online: WorldOnline, lists: GuildLists, world: WorldConfig, guil
     def side(r: Row) -> str:
         return r.relation.side
 
+    # Only allies and enemies are listed; everyone else on the world is left out.
     allies = [r for r in rows if side(r) == "ally" and r.level >= world.online_allies_min]
     enemies = [r for r in rows if side(r) == "enemy" and r.level >= world.online_enemies_min]
-    neutrals = [r for r in rows if side(r) == "neutral" and r.level >= world.online_neutrals_min]
-
-    # Neutral guilds with fewer than 3 people online aren't worth their own header.
-    counts: dict[str, int] = {}
-    for r in allies + enemies + neutrals:
-        if r.guild:
-            counts[r.guild] = counts.get(r.guild, 0) + 1
-    grouped = group_by_guild([(r.guild if counts.get(r.guild, 0) >= 3 else "", r.line) for r in neutrals])
-    neutral_lines = with_headers(grouped, lambda n: f"### Others {n}")
-    lines = combined_body([r.line for r in allies], [r.line for r in enemies], [r.line for r in neutrals],
-                          neutral_lines)
-    return OnlineList(lines, len(allies), len(enemies), len(allies) + len(enemies) + len(neutrals),
+    e = emojis.get
+    lines: list[str] = []
+    for title, icon, section in (("Allies", e("ally"), allies), ("Enemies", e("enemy"), enemies)):
+        if section:
+            lines.append(f"## {icon} {title} {len(section)}")
+            lines += with_headers(group_by_guild([(r.guild, r.line) for r in section]), lambda n: f"### No guild {n}")
+    return OnlineList(lines, len(allies), len(enemies), len(allies) + len(enemies),
                       is_masslog(zaps, len(enemies)) if enemies else False, fresh)
 
 
@@ -183,18 +180,6 @@ def with_headers(grouped: list[tuple[str, list[str]]], guildless_header) -> list
         out.append(guildless_header(len(lines)) if not guild else f"### [{guild}]({guild_url(guild)}) {len(lines)}")
         out.extend(lines)
     return out
-
-
-def combined_body(allies: list[str], enemies: list[str], neutrals: list[str], neutral_lines: list[str]) -> list[str]:
-    e = emojis.get
-    head_allies = ([f"### {e('ally')} **Allies** {e('ally')} {len(allies)}"] + allies
-                   if allies and (neutrals or enemies) else allies)
-    head_enemies = ([f"### {e('enemy')} **Enemies** {e('enemy')} {len(enemies)}"] + enemies
-                    if enemies and (allies or neutrals) else enemies)
-    has_guild_headers = any(l.startswith("### ") and not l.startswith("### Others") for l in neutral_lines)
-    if not head_allies and not head_enemies and not has_guild_headers:
-        return [l for l in neutral_lines if not l.startswith("### Others")]
-    return head_allies + head_enemies + neutral_lines
 
 
 # --- packing into messages --------------------------------------------------

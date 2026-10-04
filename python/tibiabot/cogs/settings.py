@@ -126,8 +126,7 @@ class SettingsForm(discord.ui.Modal):
             self.add_item(discord.ui.Label(text="Neutral deaths", description="Deaths of players you don't track.",
                                            component=self.deaths))
         elif action == ONLINE_FILTER:
-            for column, text in (("online_enemies_min", "Enemies"), ("online_allies_min", "Allies"),
-                                 ("online_neutrals_min", "Others")):
+            for column, text in (("online_enemies_min", "Enemies"), ("online_allies_min", "Allies")):
                 self.online_inputs[column] = _number(getattr(only, column) if only else None, "0")
                 self.add_item(discord.ui.Label(text=f"{text} in the online list", component=self.online_inputs[column],
                                                description=f"Hide {text.lower()} below this level; 0 shows everyone."))
