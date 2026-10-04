@@ -91,8 +91,13 @@ class SetupCog(commands.Cog):
 
     @staticmethod
     async def _category(guild: discord.Guild, name: str, overwrites) -> discord.CategoryChannel:
-        """Reuse a category of this name (left by an interrupted run) or create it."""
-        existing = discord.utils.get(guild.categories, name=name)
+        """Reuse a category this bot made (left by an interrupted run), or create one.
+
+        Only the bot's own: it always gives itself an overwrite on what it creates. A
+        same-named category from someone else (another tracking bot's "Antica", say) is
+        left alone, since its overwrites can leave this bot unable to create channels in it.
+        """
+        existing = next((c for c in guild.categories if c.name == name and guild.me in c.overwrites), None)
         return existing or await guild.create_category(name, overwrites=overwrites)
 
     @staticmethod

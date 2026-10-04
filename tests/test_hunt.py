@@ -111,3 +111,24 @@ def test_missing_permissions_names_what_to_turn_on():
     assert missing_permissions(discord.Permissions(manage_channels=True)) == ["Move Members", "Connect"]
     assert missing_permissions(discord.Permissions(manage_channels=True, move_members=True, connect=True)) == []
     assert missing_permissions(discord.Permissions(administrator=True)) == []
+
+
+async def test_init_reuses_only_categories_the_bot_made():
+    from tibiabot.cogs.setup import SetupCog
+    me, other_bot = object(), object()
+
+    class Cat:
+        def __init__(self, name, overwrites):
+            self.name, self.overwrites = name, overwrites
+
+    created = []
+
+    async def create_category(name, overwrites):
+        created.append(name)
+        return Cat(name, overwrites)
+
+    theirs, ours = Cat("Inabra", {other_bot: 1}), Cat("Inabra", {me: 1})
+    guild = SimpleNamespace(me=me, categories=[theirs], create_category=create_category)
+    assert (await SetupCog._category(guild, "Inabra", {me: 1})) is not theirs and created == ["Inabra"]
+    guild.categories = [theirs, ours]
+    assert (await SetupCog._category(guild, "Inabra", {me: 1})) is ours
