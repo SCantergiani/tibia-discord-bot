@@ -102,7 +102,7 @@ class OnlineCog(commands.Cog):
         try:
             channel = await guild.create_text_channel(
                 online.ENEMIES_CHANNEL, category=allies.category, overwrites=allies.overwrites,
-                position=allies.position + 1, reason="Allies and enemies online lists split")
+                reason="Allies and enemies online lists split")
             pool = await self.bot.db.guild(guild.id)
             await repos.update_world_column(pool, world.name, "enemies_channel", str(channel.id))
         except discord.HTTPException as e:
@@ -131,6 +131,7 @@ class OnlineCog(commands.Cog):
                     self._rename_soon(allies, online.channel_name(self._base(allies, online.ALLIES_CHANNEL),
                                                                   built.allies), world.name)
                     return
+                await self._order(enemies, allies)
                 await self._post(allies, online.pack_messages(
                     built.ally_lines or ["*No allies are online right now.*"]))
                 await self._post(enemies, online.pack_messages(
@@ -143,6 +144,18 @@ class OnlineCog(commands.Cog):
                 log.warning("Online list update failed in %s: %s", guild_id, e)
             except Exception:
                 log.exception("Online list update failed in %s", guild_id)
+
+    @staticmethod
+    async def _order(enemies: discord.TextChannel, allies: discord.TextChannel) -> None:
+        """Enemies first in the world's category, allies second, then the rest."""
+        category = allies.category
+        if category is None or enemies.category_id != category.id or category.text_channels[:2] == [enemies, allies]:
+            return
+        try:
+            await enemies.move(beginning=True, sync_permissions=False, reason="Enemies first, then allies")
+            await allies.move(after=enemies, sync_permissions=False, reason="Enemies first, then allies")
+        except discord.HTTPException as e:
+            log.warning("Could not reorder the online channels in %s: %s", category.guild.id, e)
 
     @staticmethod
     def _base(channel: discord.TextChannel, default: str) -> str:

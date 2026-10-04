@@ -44,8 +44,8 @@ WORLD_ROLES = (
 )
 # (worlds column, channel name, intro text or None)
 WORLD_CHANNELS = (
-    ("allies_channel", ALLIES_CHANNEL, None),
     ("enemies_channel", ENEMIES_CHANNEL, None),
+    ("allies_channel", ALLIES_CHANNEL, None),
     ("deaths_channel", DEATHS, ":speech_balloon: This channel shows deaths that occur on this world.\n\n"
                                "You can filter what appears in this channel using **`/settings`**."),
     ("levels_channel", LEVELS, ":speech_balloon: This channel shows levels that have been gained on this world.\n\n"

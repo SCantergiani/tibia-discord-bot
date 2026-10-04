@@ -314,3 +314,21 @@ async def test_rename_waits_out_discords_limit_then_uses_the_latest_name():
     await cog._rename(channel, "Inabra", sleep=sleep)
     assert renamed == ["⚔️・ᴇɴᴇᴍɪᴇs・5⚡"] and cache.writes == 1
     assert 175 < slept[0] <= 185  # 5 min 5 s minus the 2 min since the last rename
+
+
+async def test_enemies_then_allies_lead_the_category():
+    moves = []
+
+    def chan(name):
+        async def move(**kwargs):
+            moves.append((name, kwargs.get("beginning"), getattr(kwargs.get("after"), "name", None)))
+        return SimpleNamespace(name=name, category_id=1, move=move)
+    enemies, allies, deaths = chan("enemies"), chan("allies"), chan("deaths")
+    category = SimpleNamespace(id=1, guild=SimpleNamespace(id=1), text_channels=[allies, deaths, enemies])
+    allies.category = category
+    await OnlineCog._order(enemies, allies)
+    assert moves == [("enemies", True, None), ("allies", None, "enemies")]
+    moves.clear()
+    category.text_channels = [enemies, allies, deaths]
+    await OnlineCog._order(enemies, allies)
+    assert moves == []
