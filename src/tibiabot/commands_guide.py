@@ -11,7 +11,7 @@ from tibiabot import embeds
 # command is missing here, so this list can't fall behind the bot.
 SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     ("Everyone", [
-        ("lootsplit", "Paste the party hunt analyser from the Tibia client; get who pays whom, as ready-to-type "
+        ("split", "Paste the party hunt analyser from the Tibia client; get who pays whom, as ready-to-type "
                       "`transfer` commands."),
         ("bosses", "Which rare bosses are due to spawn today on your worlds, from daily kill statistics."),
         ("watchdog", "Post a TibiaCardinal Watchdog room link for your party. Optional `name`."),

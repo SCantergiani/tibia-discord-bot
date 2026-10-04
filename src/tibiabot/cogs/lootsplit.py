@@ -1,4 +1,4 @@
-"""`/lootsplit`: a form to paste a party hunt analyser into, and the split back.
+"""`/split`: a form to paste a party hunt analyser into, and the split back.
 
 A good split is a normal message (people copy from it later); a paste that
 didn't read is ephemeral, so the channel isn't left holding a typo.
@@ -44,8 +44,8 @@ class LootSplitCog(commands.Cog):
     def __init__(self, bot: TibiaBot):
         self.bot = bot
 
-    @app_commands.command(name="lootsplit", description="Split a party hunt from your hunt analyser")
-    async def lootsplit(self, interaction: discord.Interaction) -> None:
+    @app_commands.command(name="split", description="Split a party hunt's loot from your hunt analyser")
+    async def split(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(LootSplitModal())
 
 

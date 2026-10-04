@@ -17,7 +17,7 @@ machine with your own copy of TibiaData.
 | 📈 online | Only allies and enemies, grouped by guild, ⚡ fresh logins; the channel name carries the counts |
 | Mass log | Alert in deaths when many enemies log in at once, ~5 s after tibia.com shows it |
 | 📊 statistics, `/bosses` | Which rare bosses are due today, from daily kill statistics |
-| `/lootsplit` | Paste the party hunt analyser, get the transfer commands |
+| `/split` | Paste the party hunt analyser, get the transfer commands |
 | `/privatehunt` | Pick a party: private voice channel, party moved in, gone when empty |
 | `/watchdog` | A [TibiaCardinal Watchdog](https://tibiacardinal.com/watchdog) room link for a party |
 | `/settings`, `/clear`, `/repair`, `/remove` | Filters and pings, emptying channels, maintenance |
