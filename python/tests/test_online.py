@@ -141,3 +141,68 @@ def test_level_up_flag_shows_and_clears_on_logout():
     wo.update([], first_poll=False, now=20)
     wo.update([OnlinePlayer("Bubble", 101, "Knight")], first_poll=False, now=30)
     assert "⬆️" not in online.build(wo, GuildLists(), WORLD, {}, now=40).lines[0]
+
+
+# --- mass log alert ---------------------------------------------------------
+
+from dataclasses import replace  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+import discord  # noqa: E402
+
+from tibiabot.cogs.online import OnlineCog  # noqa: E402
+from tibiabot.cogs.settings import role_panel  # noqa: E402
+
+
+def test_masslog_mode_reads_the_column():
+    assert online.masslog_mode(replace(WORLD, masslog_role="123")) == "role"
+    assert online.masslog_mode(replace(WORLD, masslog_role="everyone")) == "everyone"
+    assert online.masslog_mode(replace(WORLD, masslog_role="0")) == "off"
+
+
+def test_fresh_enemies_are_listed_for_the_alert():
+    lists = GuildLists()
+    lists.hunted_guilds["nexus"] = ListedGuild("nexus")
+    wo = online.WorldOnline()
+    wo.update([], first_poll=True, now=0)
+    names = [f"Enemy {i}" for i in range(4)]
+    wo.update([OnlinePlayer(n, 300, "Knight") for n in names], first_poll=False, now=60)
+    built = online.build(wo, lists, WORLD, {n: "Nexus" for n in names}, now=120)
+    assert built.masslog and len(built.fresh_enemies) == 4
+
+
+async def test_role_panel_has_a_masslog_button_only_in_role_mode():
+    def ids(world):
+        _, view = role_panel(world)
+        return [c["custom_id"] for r in view.to_components() for c in r["components"]]
+    assert "role:masslog_role:Inabra" in ids(replace(WORLD, masslog_role="123"))
+    assert "role:masslog_role:Inabra" not in ids(replace(WORLD, masslog_role="everyone"))
+
+
+class FakeChannel(discord.TextChannel):
+    def __init__(self):  # noqa: D401 - stands in for a real channel
+        self.sent = []
+
+    async def send(self, content=None, **kwargs):
+        self.sent.append((content, kwargs))
+
+
+async def test_alert_pings_the_chosen_audience_once_per_cooldown():
+    channel = FakeChannel()
+    role = SimpleNamespace(mention="<@&123>", id=123)
+    guild = SimpleNamespace(id=1, get_channel=lambda _: channel, get_role=lambda _: role)
+    bot = SimpleNamespace(pollers=SimpleNamespace(listeners=[]))
+    cog = OnlineCog(bot)
+    built = online.OnlineList([], 0, 5, 5, True, ["a", "b", "c", "d"])
+    await cog._masslog_alert(guild, replace(WORLD, masslog_role="123"), built)
+    await cog._masslog_alert(guild, replace(WORLD, masslog_role="123"), built)
+    assert len(channel.sent) == 1 and channel.sent[0][0] == "<@&123>"
+    assert "**4** enemies logged in" in channel.sent[0][1]["embed"].description
+    everyone = FakeChannel()
+    guild2 = SimpleNamespace(id=2, get_channel=lambda _: everyone, get_role=lambda _: None)
+    await cog._masslog_alert(guild2, replace(WORLD, masslog_role="everyone"), built)
+    assert everyone.sent[0][0] == "@everyone" and everyone.sent[0][1]["allowed_mentions"].everyone
+    off = FakeChannel()
+    guild3 = SimpleNamespace(id=3, get_channel=lambda _: off, get_role=lambda _: None)
+    await cog._masslog_alert(guild3, replace(WORLD, masslog_role="0"), built)
+    assert off.sent == []

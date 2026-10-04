@@ -67,7 +67,7 @@ DISCORD_COLUMNS = tuple(f.name for f in fields(DiscordInfo))
 # column name never comes from outside this module.
 REPAIRABLE_COLUMNS = frozenset({
     "allies_channel", "levels_channel", "deaths_channel", "category", "statistics_channel",
-    "fullbless_role", "nemesis_role", "allypk_role",
+    "fullbless_role", "nemesis_role", "allypk_role", "masslog_role",
 })
 
 
@@ -122,6 +122,8 @@ SETTING_COLUMNS: dict[str, type] = {
     "show_enemies_levels": str, "show_enemies_deaths": str, "detect_hunteds": str, "exiva_list": str,
     "online_combined": str, "fullbless_level": int, "levels_min": int, "deaths_min": int,
     "online_allies_min": int, "online_enemies_min": int, "online_neutrals_min": int,
+    # A role id (ping that role), "everyone" (ping @everyone) or "0" (no mass-log alert).
+    "masslog_role": str,
 }
 
 

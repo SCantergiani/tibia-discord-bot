@@ -17,7 +17,7 @@ from discord.ext import commands
 from tibiabot import embeds
 from tibiabot.db import repos
 from tibiabot.db.repos import NONE_ID, WorldConfig
-from tibiabot.cogs.settings import post_role_panel
+from tibiabot.cogs.settings import find_role_panel, post_role_panel
 
 if TYPE_CHECKING:
     from tibiabot.bot import TibiaBot
@@ -38,6 +38,7 @@ WORLD_ROLES = (
     ("fullbless_role", "Fullbless", discord.Color.from_rgb(0, 156, 70)),
     ("nemesis_role", "Rare Boss", discord.Color.from_rgb(164, 76, 230)),
     ("allypk_role", "PVP", discord.Color.from_rgb(220, 0, 0)),
+    ("masslog_role", "Masslog", discord.Color.from_rgb(219, 175, 72)),
 )
 # (worlds column, channel name, intro text or None)
 WORLD_CHANNELS = (
@@ -139,22 +140,14 @@ class SetupCog(commands.Cog):
 
     async def _ensure_role_panel(self, guild: discord.Guild, info: repos.DiscordInfo | None,
                                  world: WorldConfig) -> bool:
-        """Post the world's role opt-in buttons in the notifications channel unless
-        they are already among its recent messages. True when posted."""
+        """Post the world's role opt-in buttons in the notifications channel, or bring
+        an existing panel up to date. True when a new one was posted."""
         channel = guild.get_channel(int(info.boosted_channel)) if info and info.boosted_channel.isdigit() else None
         if not isinstance(channel, discord.TextChannel):
             return False
-        marker = f"role:fullbless_role:{world.name}"
-        try:
-            async for message in channel.history(limit=50):
-                if message.author.id == guild.me.id and any(
-                        getattr(child, "custom_id", None) == marker
-                        for row in message.components for child in getattr(row, "children", [])):
-                    return False
-        except discord.HTTPException:
-            pass
-        await post_role_panel(channel, world)
-        return True
+        existing = await find_role_panel(channel, world)
+        await post_role_panel(channel, world, existing)
+        return existing is None
 
     async def _moderator_role(self, guild: discord.Guild, pool) -> None:
         try:
@@ -237,7 +230,7 @@ class SetupCog(commands.Cog):
                 neutrals_channel=NONE_ID, levels_channel=str(channels["levels_channel"].id),
                 deaths_channel=str(channels["deaths_channel"].id), category=str(category.id),
                 fullbless_role=str(roles["fullbless_role"].id), nemesis_role=str(roles["nemesis_role"].id),
-                allypk_role=str(roles["allypk_role"].id),
+                allypk_role=str(roles["allypk_role"].id), masslog_role=str(roles["masslog_role"].id),
                 statistics_channel=str(channels["statistics_channel"].id))
             await repos.save_world(pool, config)
             await self._moderator_role(guild, pool)
@@ -283,6 +276,8 @@ class SetupCog(commands.Cog):
             info = await self._admin_area(guild, pool)
             for col, suffix, color in WORLD_ROLES:
                 role_id = getattr(config, col)
+                if col == "masslog_role" and not (role_id.isdigit() and role_id != "0"):
+                    continue  # "everyone" or turned off in /settings: nothing to repair
                 if not (role_id.isdigit() and guild.get_role(int(role_id))):
                     role = await self._role(guild, f"{name} {suffix}", color)
                     await repos.update_world_column(pool, name, col, str(role.id))

@@ -25,6 +25,8 @@ REFRESH_SECONDS = 60
 # Discord allows two renames per channel per ten minutes; this stays under that.
 RENAME_COOLDOWN = timedelta(minutes=7)
 MASSLOG_QUIET_AFTER_START = 30 * 60
+MASSLOG_ALERT_COOLDOWN = 15 * 60
+MASSLOG_COLOR = 14397256
 LIST_COLOR = 3092790
 
 
@@ -35,6 +37,7 @@ class OnlineCog(commands.Cog):
         self._posted: dict[int, list[tuple[int, list[str]]]] = {}  # channel -> [(message id, descriptions)]
         self._locks: dict[int, asyncio.Lock] = {}
         self._started = time.time()
+        self._last_alert: dict[tuple[int, str], float] = {}
         bot.pollers.listeners.append(self.on_snapshot)
 
     def cog_unload(self) -> None:
@@ -86,10 +89,39 @@ class OnlineCog(commands.Cog):
                     masslog = built.masslog and time.time() - self._started > MASSLOG_QUIET_AFTER_START
                     name = online.category_name(world.name, built.allies, built.enemies) + ("⚡" if masslog else "")
                     await self._rename(category, name, world.name)
+                if built.masslog:
+                    await self._masslog_alert(guild, world, built)
             except discord.HTTPException as e:
                 log.warning("Online list update failed in %s: %s", guild_id, e)
             except Exception:
                 log.exception("Online list update failed in %s", guild_id)
+
+    # --- mass log -------------------------------------------------------------
+
+    async def _masslog_alert(self, guild: discord.Guild, world: WorldConfig, built: online.OnlineList) -> None:
+        """Many enemies just logged in: ping whoever this world's setting names."""
+        mode = online.masslog_mode(world)
+        key = (guild.id, world.name)
+        if mode == "off" or time.monotonic() - self._last_alert.get(key, -MASSLOG_ALERT_COOLDOWN) \
+                < MASSLOG_ALERT_COOLDOWN:
+            return
+        channel = guild.get_channel(int(world.deaths_channel)) if world.deaths_channel.isdigit() else None
+        if not isinstance(channel, discord.TextChannel):
+            return
+        self._last_alert[key] = time.monotonic()
+        role = guild.get_role(int(world.masslog_role)) if mode == "role" else None
+        content = "@everyone" if mode == "everyone" else role.mention if role else None
+        who = "\n".join(built.fresh_enemies[:25])
+        more = f"\n*…and {len(built.fresh_enemies) - 25} more*" if len(built.fresh_enemies) > 25 else ""
+        embed = discord.Embed(
+            title=f"⚡ Mass log on {world.name}", color=MASSLOG_COLOR,
+            description=(f"**{len(built.fresh_enemies)}** enemies logged in within the last 15 minutes "
+                         f"(**{built.enemies}** online).\n\n{who}{more}")[:4096])
+        try:
+            await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions(
+                everyone=mode == "everyone", roles=[role] if role else []))
+        except discord.HTTPException as e:
+            log.warning("Could not post a mass log alert in %s: %s", guild.id, e)
 
     # --- the messages --------------------------------------------------------
 

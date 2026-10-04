@@ -107,6 +107,18 @@ class OnlineList:
     enemies: int
     total: int
     masslog: bool
+    fresh_enemies: list[str] = field(default_factory=list)  # lines of enemies who just logged in
+
+
+MASSLOG_EVERYONE = "everyone"
+
+
+def masslog_mode(world: WorldConfig) -> str:
+    """"role", "everyone" or "off", read from the masslog_role column."""
+    value = world.masslog_role or "0"
+    if value == MASSLOG_EVERYONE:
+        return "everyone"
+    return "role" if value.isdigit() and value != "0" else "off"
 
 
 def build(world_online: WorldOnline, lists: GuildLists, world: WorldConfig, guild_of: dict[str, str],
@@ -115,6 +127,7 @@ def build(world_online: WorldOnline, lists: GuildLists, world: WorldConfig, guil
     now = now or time.time()
     rows: list[Row] = []
     zaps = 0
+    fresh: list[str] = []
     for player in sorted(world_online.players.values(), key=lambda p: -p.level):
         guild = guild_of.get(player.name, "")
         rel = relation_of(lists, player.name, guild)
@@ -129,6 +142,8 @@ def build(world_online: WorldOnline, lists: GuildLists, world: WorldConfig, guil
         line = (f"{vocation_emoji(player.vocation)} **{player.level}** — **[{player.name}]({char_url(player.name)})** "
                 f"{guild_icon(guild, rel)} {duration_text(seconds, known)} {flag}{mark}{tag}")
         rows.append(Row(guild, rel, vocation_key(player.vocation), player.level, re.sub(r"\s+$", "", line)))
+        if just_logged:
+            fresh.append(rows[-1].line)
 
     order = {v: i for i, v in enumerate(VOCATION_ORDER)}
     rows.sort(key=lambda r: (order.get(r.vocation, len(order)), -r.level))
@@ -150,7 +165,7 @@ def build(world_online: WorldOnline, lists: GuildLists, world: WorldConfig, guil
     lines = combined_body([r.line for r in allies], [r.line for r in enemies], [r.line for r in neutrals],
                           neutral_lines)
     return OnlineList(lines, len(allies), len(enemies), len(allies) + len(enemies) + len(neutrals),
-                      is_masslog(zaps, len(enemies)) if enemies else False)
+                      is_masslog(zaps, len(enemies)) if enemies else False, fresh)
 
 
 def group_by_guild(rows: list[tuple[str, str]]) -> list[tuple[str, list[str]]]:
