@@ -103,3 +103,11 @@ def test_viewer_role_can_see_but_not_join_and_party_can_join():
     assert ow[me].connect is True and ow[me].send_messages is True
     me.guild_permissions = SimpleNamespace(connect=False)
     assert party_overwrites(guild, [friend])[me].connect is None
+
+
+def test_missing_permissions_names_what_to_turn_on():
+    import discord
+    from tibiabot.cogs.hunt import missing_permissions
+    assert missing_permissions(discord.Permissions(manage_channels=True)) == ["Move Members", "Connect"]
+    assert missing_permissions(discord.Permissions(manage_channels=True, move_members=True, connect=True)) == []
+    assert missing_permissions(discord.Permissions(administrator=True)) == []

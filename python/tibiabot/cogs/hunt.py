@@ -1,8 +1,9 @@
 """`/privatehunt`: a private voice channel for one party.
 
-The form picks the party; the bot creates a voice channel only they can see,
-moves whoever is already in voice into it, pings the rest there, and deletes
-the channel once it has been empty for a minute or someone presses End hunt.
+The form picks the party; the bot creates a voice channel only they can see and
+moves the starter and everyone else already in voice into it (nothing is
+created unless that can happen), pings the rest there, and deletes the channel
+as soon as it is empty or someone presses End hunt.
 """
 
 from __future__ import annotations
@@ -26,9 +27,16 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 HUNT_PREFIX = "🏹・Hunt"
-EMPTY_GRACE = 60          # seconds an emptied hunt channel waits before it goes
-NEVER_JOINED_GRACE = 600  # a hunt nobody ever joined is removed after this
+EMPTY_GRACE = 5  # seconds an emptied hunt waits before it goes: a brief disconnect doesn't end it
 MAX_PARTY = 25
+NEEDED_PERMISSIONS = (("manage_channels", "Manage Channels"), ("move_members", "Move Members"),
+                      ("connect", "Connect"))
+
+
+def missing_permissions(perms: discord.Permissions) -> list[str]:
+    if perms.administrator:
+        return []
+    return [label for attr, label in NEEDED_PERMISSIONS if not getattr(perms, attr)]
 
 
 def channel_name(name: str | None) -> str:
@@ -74,9 +82,24 @@ class HuntForm(discord.ui.Modal, title="Start a hunt"):
         cog: HuntCog | None = bot.get_cog("HuntCog")  # type: ignore[assignment]
         await interaction.response.defer(ephemeral=True, thinking=True)
         guild = interaction.guild
+
+        # Nothing is created unless the party can actually be moved into it.
+        missing = missing_permissions(guild.me.guild_permissions)
+        if missing:
+            await interaction.followup.send(embed=embeds.error(
+                "I need these server permissions for private hunts: " + ", ".join(f"**{m}**" for m in missing)
+                + ".\nServer Settings → Roles → my role."), ephemeral=True)
+            return
+        starter = guild.get_member(interaction.user.id)
+        if starter is None or starter.voice is None or starter.voice.channel is None:
+            await interaction.followup.send(embed=embeds.error(
+                "Join a voice channel first, then run `/privatehunt`: I move the party from voice into the hunt."),
+                ephemeral=True)
+            return
+
         members = [m for m in self.party.values if isinstance(m, discord.Member) and not m.bot]
-        if interaction.user.id not in {m.id for m in members}:
-            members.insert(0, interaction.user)
+        if starter.id not in {m.id for m in members}:
+            members.insert(0, starter)
         name = (self.hunt_name.value or "").strip() or None
         category = getattr(interaction.channel, "category", None)
         info = bot.state.guild(guild.id).info
@@ -85,60 +108,55 @@ class HuntForm(discord.ui.Modal, title="Start a hunt"):
             channel = await guild.create_voice_channel(channel_name(name), category=category,
                                                        overwrites=party_overwrites(guild, members, viewers),
                                                        reason=f"/privatehunt by {interaction.user}")
-        except discord.Forbidden:
-            await interaction.followup.send(embed=embeds.error(
-                "I can't create channels here. Give me **Manage Channels**."), ephemeral=True)
+        except discord.HTTPException as e:
+            await interaction.followup.send(embed=embeds.error(f"I couldn't create the hunt channel: {e.text}"),
+                                            ephemeral=True)
             return
         cog.track(channel)
+        try:
+            await starter.move_to(channel, reason="/privatehunt")
+        except discord.HTTPException as e:
+            await cog.delete(channel, "the starter couldn't be moved in")
+            await interaction.followup.send(embed=embeds.error(
+                f"I couldn't move you into the hunt ({e.text}), so I removed it."), ephemeral=True)
+            return
 
-        moved, not_in_voice, failed = [], [], []
-        can_move = guild.me.guild_permissions.move_members
+        moved, not_in_voice, failed = [starter], [], []
         for member in members:
+            if member.id == starter.id:
+                continue
             current = guild.get_member(member.id) or member
             if current.voice is None or current.voice.channel is None:
                 not_in_voice.append(member)
-            elif not can_move:
+                continue
+            try:
+                await current.move_to(channel, reason="/privatehunt")
+                moved.append(member)
+            except discord.HTTPException:
                 failed.append(member)
-            else:
-                try:
-                    await current.move_to(channel, reason="/privatehunt")
-                    moved.append(member)
-                except discord.HTTPException:
-                    failed.append(member)
 
         watchdog = WATCHDOG_URL + room_name(name)
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Watchdog", url=watchdog, emoji="🐶"))
         view.add_item(EndHuntButton(channel.id))
-        welcome = dict(
-            content=" ".join(m.mention for m in members),
-            embed=discord.Embed(
-                title=f"🏹 {name or 'Hunt'}", color=embeds.BRAND_COLOR,
-                description=(f"Party of **{len(members)}**, started by {interaction.user.mention}.\n"
-                             f"Join: {channel.mention}\nWatchdog room: {watchdog}\n\nThe hunt channel disappears "
-                             "a minute after everyone has left, or when someone presses **End hunt**.")),
-            view=view, allowed_mentions=discord.AllowedMentions(users=members))
         try:
-            await channel.send(**welcome)
+            await channel.send(
+                content=" ".join(m.mention for m in members),
+                embed=discord.Embed(
+                    title=f"🏹 {name or 'Hunt'}", color=embeds.BRAND_COLOR,
+                    description=(f"Party of **{len(members)}**, started by {interaction.user.mention}.\n"
+                                 f"Watchdog room: {watchdog}\n\nThis channel disappears as soon as everyone has "
+                                 "left, or when someone presses **End hunt**.")),
+                view=view, allowed_mentions=discord.AllowedMentions(users=members))
         except discord.HTTPException as e:
-            # The voice channel's chat refused us (missing Connect/Send there): ping the
-            # party where the command was run instead, so nobody misses the invite.
-            log.warning("Could not post in hunt channel %s (%s); posting in the command's channel", channel.id, e)
-            try:
-                await interaction.channel.send(**welcome)
-            except discord.HTTPException as e2:
-                log.warning("Could not post the hunt invite at all: %s", e2)
+            log.warning("Could not post in hunt channel %s: %s", channel.id, e)
 
-        lines = [f"Created {channel.mention}."]
-        if moved:
-            lines.append(f"Moved: {', '.join(m.mention for m in moved)}")
+        lines = [f"Started {channel.mention}.", f"Moved: {', '.join(m.mention for m in moved)}"]
         if not_in_voice:
-            lines.append(f"Not in voice, pinged in the channel: {', '.join(m.mention for m in not_in_voice)}")
+            lines.append(f"Not in voice yet, pinged in the hunt: {', '.join(m.mention for m in not_in_voice)}")
         if failed:
-            lines.append(f"Couldn't move: {', '.join(m.mention for m in failed)}"
-                         + ("" if can_move else " — give me the **Move Members** permission to move people."))
+            lines.append(f"Couldn't move: {', '.join(m.mention for m in failed)}")
         await interaction.followup.send(embed=embeds.ok("\n".join(lines)), ephemeral=True)
-        cog.expire_if_never_joined(channel)
 
 
 class EndHuntButton(discord.ui.DynamicItem[discord.ui.Button], template=r"hunt:end:(?P<channel>[0-9]+)"):
@@ -200,10 +218,6 @@ class HuntCog(commands.Cog):
                 await self.delete(fresh, reason)
 
         self._pending[channel.id] = asyncio.create_task(wait_then_delete(), name=f"hunt-expire:{channel.id}")
-
-    def expire_if_never_joined(self, channel: discord.VoiceChannel) -> None:
-        if not channel.members:
-            self._delete_later(channel, NEVER_JOINED_GRACE, "nobody joined")
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState,
