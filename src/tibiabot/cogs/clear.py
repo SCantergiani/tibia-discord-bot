@@ -119,7 +119,7 @@ class ClearCog(commands.Cog):
         if picked is None:
             await interaction.response.send_message(embed=embeds.error(
                 "Pick one of your worlds: " + ", ".join(f"**{w}**" for w in sorted(worlds)) if worlds
-                else "No worlds are set up here yet — run `/setup` first."), ephemeral=True)
+                else "No worlds are set up here yet — run `/init` first."), ephemeral=True)
             return
         config = worlds[picked]
         names = []

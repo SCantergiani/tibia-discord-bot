@@ -115,7 +115,7 @@ class StatisticsCog(commands.Cog):
         worlds = sorted(self.bot.state.guild(interaction.guild_id).worlds)
         if not worlds:
             await interaction.response.send_message(
-                embed=embeds.error("No worlds are set up here yet — run `/setup` first."), ephemeral=True)
+                embed=embeds.error("No worlds are set up here yet — run `/init` first."), ephemeral=True)
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         today = game_day(datetime.now(timezone.utc))

@@ -68,7 +68,7 @@ class SettingsButton(discord.ui.DynamicItem[discord.ui.Button], template=r"setti
         state = bot.state.guild(interaction.guild_id)
         worlds = sorted(state.worlds.values(), key=lambda w: w.name)
         if not worlds:
-            await interaction.response.send_message(embed=embeds.error("Run `/setup` first."), ephemeral=True)
+            await interaction.response.send_message(embed=embeds.error("Run `/init` first."), ephemeral=True)
             return
         await interaction.response.send_modal(SettingsForm(self.action, worlds))
 
@@ -226,7 +226,7 @@ class SettingsForm(discord.ui.Modal):
     async def _hunt_role(self, bot: TibiaBot, interaction: discord.Interaction) -> None:
         state = bot.state.guild(interaction.guild_id)
         if state.info is None:
-            await interaction.followup.send(embed=embeds.error("Run `/setup` first."), ephemeral=True)
+            await interaction.followup.send(embed=embeds.error("Run `/init` first."), ephemeral=True)
             return
         role = self.role.values[0] if self.role.values else None
         state.info.hunt_role = str(role.id) if role else "0"
@@ -285,7 +285,7 @@ class SettingsForm(discord.ui.Modal):
             return
         state = bot.state.guild(interaction.guild_id)
         if state.info is None:
-            await interaction.followup.send(embed=embeds.error("Run `/setup` first."), ephemeral=True)
+            await interaction.followup.send(embed=embeds.error("Run `/init` first."), ephemeral=True)
             return
         state.info.admin_channel = str(channel.id)
         await repos.save_discord_info(await bot.db.guild(interaction.guild_id), state.info)
@@ -417,7 +417,7 @@ class SettingsCog(commands.Cog):
         worlds = sorted(self.bot.state.guild(interaction.guild_id).worlds)
         if not worlds:
             await interaction.response.send_message(
-                embed=embeds.error("No worlds are set up here yet — run `/setup` first."), ephemeral=True)
+                embed=embeds.error("No worlds are set up here yet — run `/init` first."), ephemeral=True)
             return
         embed = discord.Embed(title="Server settings", color=embeds.BRAND_COLOR, description=(
             "Pick what you want to change. Each one opens a form showing what it is set to now, so you can check "

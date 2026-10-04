@@ -28,7 +28,7 @@ class WorldList:
                 self._names = sorted(w.name for w in await self._client.worlds())
                 self._fetched_at = time.time()
             except TibiaDataError as e:
-                # A stale list beats refusing every /setup during an outage.
+                # A stale list beats refusing every /init during an outage.
                 log.warning("World list refresh failed: %s", e)
         return self._names
 

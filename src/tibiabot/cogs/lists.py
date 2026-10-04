@@ -337,7 +337,7 @@ class ListsCog(commands.Cog):
             await interaction.followup.send(embed=_refusal(), ephemeral=True)
             return
         if not self.bot.state.guild(interaction.guild_id).worlds:
-            await interaction.followup.send(embed=embeds.error("No worlds are set up here yet — run `/setup` first."),
+            await interaction.followup.send(embed=embeds.error("No worlds are set up here yet — run `/init` first."),
                                             ephemeral=True)
             return
         pages = list_embeds.batches(await self.bot.lists.embeds(interaction.guild, _hunted(panel)))

@@ -10,7 +10,7 @@ machine with your own copy of TibiaData.
 
 | Command / channel | What it does |
 |---|---|
-| `/setup world:` | Creates the world's channels (📈 online, 💀 deaths, 💖 levels, 📊 statistics) and ping roles |
+| `/init world:` | Creates the world's channels (📈 online, 💀 deaths, 💖 levels, 📊 statistics) and ping roles |
 | `/hunted`, `/allies` | Enemy and ally lists: players and whole guilds, tags, bulk paste, auto clean-up of traded/deleted characters |
 | 💀 deaths | Every ally/enemy death within ~5–10 s, coloured by side, exiva lines, pings (Fullbless, PVP, Rare Boss), killers of allies auto-added to hunted |
 | 💖 levels | Level-ups, batched and silent |
@@ -48,7 +48,7 @@ uv sync
 uv run tibiabot
 ```
 
-Then `/setup world: <your world>` in Discord.
+Then `/init world: <your world>` in Discord.
 
 ### Why your own TibiaData
 

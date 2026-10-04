@@ -1,4 +1,4 @@
-"""`/setup`, `/repair` and `/remove`: the channels, roles and config rows for a world.
+"""`/init`, `/repair` and `/remove`: the channels, roles and config rows for a world.
 
 Same names, layout and stored ids as the Scala bot's ChannelService, minus what
 is not ported (Patreon seats, boosted/Galthen posts, the activity channel, the
@@ -87,7 +87,7 @@ class SetupCog(commands.Cog):
     @staticmethod
     async def _role(guild: discord.Guild, name: str, color: discord.Color) -> discord.Role:
         existing = discord.utils.find(lambda r: r.name.lower() == name.lower(), guild.roles)
-        return existing or await guild.create_role(name=name, color=color, reason="Tibia bot /setup")
+        return existing or await guild.create_role(name=name, color=color, reason="Tibia bot /init")
 
     @staticmethod
     async def _category(guild: discord.Guild, name: str, overwrites) -> discord.CategoryChannel:
@@ -195,11 +195,11 @@ class SetupCog(commands.Cog):
 
     # --- commands ------------------------------------------------------------
 
-    @app_commands.command(name="setup", description="Setup a world to be tracked")
+    @app_commands.command(name="init", description="Start tracking a world: creates its channels and roles")
     @app_commands.describe(world="The world you want to track")
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.guild_only()
-    async def setup(self, interaction: discord.Interaction, world: str) -> None:
+    async def init_world(self, interaction: discord.Interaction, world: str) -> None:
         await interaction.response.defer(thinking=True)
         guild = interaction.guild
         name = await self._resolve_world(interaction, world)
@@ -240,13 +240,13 @@ class SetupCog(commands.Cog):
             self.bot.state.set_world(guild.id, config)
             await self.bot.pollers.sync(self.bot.state.tracked_worlds())
         except discord.Forbidden as e:
-            log.warning("/setup %s on %s refused by Discord: %s", name, guild.id, e)
+            log.warning("/init %s on %s refused by Discord: %s", name, guild.id, e)
             await interaction.followup.send(embed=embeds.error(
                 f"Discord refused part of setting up **{name}** ({e.text or 'Missing Permissions'}). "
-                f"Check that my role is above the roles I create, then run `/setup {name}` again; "
+                f"Check that my role is above the roles I create, then run `/init {name}` again; "
                 "it reuses whatever was already made."))
             return
-        await self._admin_log(guild, f"**{interaction.user.display_name}** has run `/setup` for the world **{name}** "
+        await self._admin_log(guild, f"**{interaction.user.display_name}** has run `/init` for the world **{name}** "
                                      "and created its channels.")
         await interaction.followup.send(embed=embeds.response(
             f":gear: The channels for **{name}** have been configured successfully.\n"
@@ -270,7 +270,7 @@ class SetupCog(commands.Cog):
             config = await repos.get_world(pool, name)
             if config is None:
                 await interaction.followup.send(embed=embeds.error(
-                    f"The world **{name}** is not configured here. Use `/setup {name}` first."))
+                    f"The world **{name}** is not configured here. Use `/init {name}` first."))
                 return
             fixed: list[str] = []
             info = await self._admin_area(guild, pool)
@@ -369,7 +369,7 @@ class SetupCog(commands.Cog):
                                      f"**{name}** and deleted its channels.")
         await interaction.followup.send(embed=embeds.response(f":gear: The world **{name}** has been removed."))
 
-    @setup.autocomplete("world")
+    @init_world.autocomplete("world")
     @repair.autocomplete("world")
     @remove.autocomplete("world")
     async def _world_autocomplete(self, interaction: discord.Interaction, current: str):

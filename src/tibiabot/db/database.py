@@ -2,7 +2,7 @@
 
 - `postgres`: admin connection, only to create or drop the others.
 - `bot_cache`: shared across every guild.
-- `_<guildId>`: one per Discord server, created by `/setup`.
+- `_<guildId>`: one per Discord server, created by `/init`.
 """
 
 from __future__ import annotations
