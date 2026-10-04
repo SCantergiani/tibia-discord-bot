@@ -47,6 +47,8 @@ class Settings:
     fast_poll_max_per_second: float = 2  # starting rate; it adapts to how tibia.com answers
     fast_poll_ceiling: float = 4         # never above this
     ally_poll_seconds: float = 10        # allies are re-checked this often (enemies every fast_poll_seconds)
+    masslog_minutes: float = 5    # a mass log: masslog_min_enemies enemies logging in within this
+    masslog_min_enemies: int = 5
     tracked_warn_at: int = 200  # warn when adds take a server past this many tracked characters
     emoji_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent / "data" / "emojis")
 
@@ -88,6 +90,8 @@ def load(env_file: str | os.PathLike | None = None) -> Settings:
         fast_poll_max_per_second=float(os.getenv("FAST_POLL_MAX_PER_SECOND", "") or 2),
         fast_poll_ceiling=float(os.getenv("FAST_POLL_CEILING", "") or 4),
         ally_poll_seconds=float(os.getenv("ALLY_POLL_SECONDS", "") or 10),
+        masslog_minutes=float(os.getenv("MASSLOG_MINUTES", "") or 5),
+        masslog_min_enemies=_int("MASSLOG_MIN_ENEMIES", 5),
         tracked_warn_at=_int("TRACKED_WARN_AT", 200),
         **({"emoji_dir": Path(emoji_dir)} if emoji_dir else {}),
     )

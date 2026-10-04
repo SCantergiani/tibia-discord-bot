@@ -37,10 +37,10 @@ def test_channel_name_carries_the_counts_and_mass_log():
     assert online.channel_name(online.base_name(name, "online"), 2, 0, False) == "📈・ᴏɴʟɪɴᴇ・🤍2"
 
 
-def test_masslog_thresholds():
-    assert [online.required_zaps(n) for n in (0, 1, 5, 10, 20, 21, 25)] == [3, 3, 4, 7, 10, 9, 10]
-    assert online.is_masslog(4, 5) and not online.is_masslog(3, 5)
-    assert online.is_masslog(20, 25) and not online.is_masslog(0, 5)
+def test_masslog_needs_five_logins():
+    assert online.is_masslog(5) and online.is_masslog(12)
+    assert not online.is_masslog(4) and not online.is_masslog(0)
+    assert online.is_masslog(3, min_enemies=3)
 
 
 # --- grouping ---------------------------------------------------------------
@@ -169,15 +169,34 @@ def test_masslog_mode_reads_the_column():
     assert online.masslog_mode(replace(WORLD, masslog_role="0")) == "off"
 
 
-def test_fresh_enemies_are_listed_for_the_alert():
+def _enemies_logging_in(count: int, at: float) -> tuple[online.WorldOnline, GuildLists, dict[str, str]]:
     lists = GuildLists()
     lists.hunted_guilds["nexus"] = ListedGuild("nexus")
     wo = online.WorldOnline()
     wo.update([], first_poll=True, now=0)
-    names = [f"Enemy {i}" for i in range(4)]
-    wo.update([OnlinePlayer(n, 300, "Knight") for n in names], first_poll=False, now=60)
-    built = online.build(wo, lists, WORLD, {n: "Nexus" for n in names}, now=120)
-    assert built.masslog and len(built.fresh_enemies) == 4
+    names = [f"Enemy {i}" for i in range(count)]
+    wo.update([OnlinePlayer(n, 300, "Knight") for n in names], first_poll=False, now=at)
+    return wo, lists, {n: "Nexus" for n in names}
+
+
+def test_five_enemies_within_five_minutes_is_a_mass_log():
+    wo, lists, guild_of = _enemies_logging_in(5, at=60)
+    built = online.build(wo, lists, WORLD, guild_of, now=120)
+    assert built.masslog and len(built.fresh_enemies) == 5
+
+
+def test_four_enemies_is_not_a_mass_log():
+    wo, lists, guild_of = _enemies_logging_in(4, at=60)
+    built = online.build(wo, lists, WORLD, guild_of, now=120)
+    assert not built.masslog and len(built.fresh_enemies) == 4
+
+
+def test_logins_older_than_the_window_dont_count():
+    wo, lists, guild_of = _enemies_logging_in(6, at=60)
+    built = online.build(wo, lists, WORLD, guild_of, now=60 + 5 * 60)
+    assert not built.masslog and built.fresh_enemies == []
+    assert ":zap:" in "\n".join(built.lines)  # still marked as a recent login in the list
+    assert online.build(wo, lists, WORLD, guild_of, now=60 + 5 * 60, masslog_window=10 * 60).masslog
 
 
 async def test_role_panel_has_a_masslog_button_only_in_role_mode():
@@ -200,7 +219,7 @@ async def test_alert_pings_the_chosen_audience_once_per_cooldown():
     channel = FakeChannel()
     role = SimpleNamespace(mention="<@&123>", id=123)
     guild = SimpleNamespace(id=1, get_channel=lambda _: channel, get_role=lambda _: role)
-    bot = SimpleNamespace(pollers=SimpleNamespace(listeners=[]))
+    bot = SimpleNamespace(settings=SimpleNamespace(masslog_minutes=5), pollers=SimpleNamespace(listeners=[]))
     cog = OnlineCog(bot)
     built = online.OnlineList([], 0, 5, 5, True, ["a", "b", "c", "d"])
     await cog._masslog_alert(guild, replace(WORLD, masslog_role="123"), built)
@@ -223,7 +242,7 @@ async def test_masslog_can_ping_the_member_role():
     member_role = SimpleNamespace(mention="<@&999>", id=999)
     guild = SimpleNamespace(id=5, get_channel=lambda _: channel, get_role=lambda rid: member_role if rid == 999 else None)
     info = SimpleNamespace(member_role="999")
-    bot = SimpleNamespace(pollers=SimpleNamespace(listeners=[]),
+    bot = SimpleNamespace(settings=SimpleNamespace(masslog_minutes=5), pollers=SimpleNamespace(listeners=[]),
                           state=SimpleNamespace(guild=lambda _: SimpleNamespace(info=info)))
     cog = OnlineCog(bot)
     await cog._masslog_alert(guild, replace(WORLD, masslog_role="members"), online.OnlineList([], 0, 5, 5, True, ["a"]))

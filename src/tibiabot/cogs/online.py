@@ -25,7 +25,6 @@ REFRESH_SECONDS = 60
 # Discord allows two renames per channel per ten minutes; this stays under that.
 RENAME_COOLDOWN = timedelta(minutes=7)
 MASSLOG_QUIET_AFTER_START = 30 * 60
-MASSLOG_ALERT_COOLDOWN = 15 * 60
 MASSLOG_COLOR = 14397256
 LIST_COLOR = 3092790
 
@@ -55,14 +54,18 @@ class OnlineCog(commands.Cog):
             if guild is None:
                 continue
             # Mass logs are checked on every poll; the list itself is redrawn less often.
-            built = online.build(world_online, self.bot.lists.of(guild_id), world,
-                                 self._guild_of(guild_id, world_online))
+            built = self._build(guild_id, world, world_online)
             if built.masslog:
                 asyncio.create_task(self._masslog_alert(guild, world, built), name=f"masslog:{guild_id}")
             if now - self._last_refresh.get(guild_id, 0) < REFRESH_SECONDS:
                 continue
             self._last_refresh[guild_id] = now
             asyncio.create_task(self._refresh(guild_id, world, world_online), name=f"online:{guild_id}")
+
+    def _build(self, guild_id: int, world: WorldConfig, world_online: online.WorldOnline) -> online.OnlineList:
+        settings = self.bot.settings
+        return online.build(world_online, self.bot.lists.of(guild_id), world, self._guild_of(guild_id, world_online),
+                            masslog_window=settings.masslog_minutes * 60, masslog_min=settings.masslog_min_enemies)
 
     def _guild_of(self, guild_id: int, world_online: online.WorldOnline) -> dict[str, str]:
         """Each online player's guild: from their sheet if known, else a listed guild's roster."""
@@ -87,8 +90,7 @@ class OnlineCog(commands.Cog):
             return
         async with lock:
             try:
-                built = online.build(world_online, self.bot.lists.of(guild_id), world,
-                                     self._guild_of(guild_id, world_online))
+                built = self._build(guild_id, world, world_online)
                 lines = built.lines or ["*No allies or enemies are online right now.*"]
                 await self._post(channel, online.pack_messages(lines))
                 masslog = built.masslog and time.time() - self._started > MASSLOG_QUIET_AFTER_START
@@ -110,8 +112,9 @@ class OnlineCog(commands.Cog):
         """Many enemies just logged in: ping whoever this world's setting names."""
         mode = online.masslog_mode(world)
         key = (guild.id, world.name)
-        if mode == "off" or time.monotonic() - self._last_alert.get(key, -MASSLOG_ALERT_COOLDOWN) \
-                < MASSLOG_ALERT_COOLDOWN:
+        # One alert per wave: the next needs a fresh window's worth of logins.
+        window = self.bot.settings.masslog_minutes * 60
+        if mode == "off" or time.monotonic() - self._last_alert.get(key, -window) < window:
             return
         channel = guild.get_channel(int(world.deaths_channel)) if world.deaths_channel.isdigit() else None
         if not isinstance(channel, discord.TextChannel):
@@ -128,7 +131,8 @@ class OnlineCog(commands.Cog):
         more = f"\n*…and {len(built.fresh_enemies) - 25} more*" if len(built.fresh_enemies) > 25 else ""
         embed = discord.Embed(
             title=f"⚡ Mass log on {world.name}", color=MASSLOG_COLOR,
-            description=(f"**{len(built.fresh_enemies)}** enemies logged in within the last 15 minutes "
+            description=(f"**{len(built.fresh_enemies)}** enemies logged in within the last "
+                         f"{self.bot.settings.masslog_minutes:g} minutes "
                          f"(**{built.enemies}** online).\n\n{who}{more}")[:4096])
         try:
             await channel.send(content=content, embed=embed, allowed_mentions=discord.AllowedMentions(

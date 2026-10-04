@@ -5,7 +5,6 @@ MasslogDetector, simplified to the combined layout (one channel)."""
 
 from __future__ import annotations
 
-import math
 import re
 import time
 from dataclasses import dataclass, field
@@ -18,6 +17,8 @@ from tibiabot.lists.models import GuildLists, tag_mark
 from tibiabot.tibiadata.models import OnlinePlayer
 
 RECENT_LOGIN_SECONDS = 900      # :zap: for an enemy online less than this
+MASSLOG_WINDOW_SECONDS = 5 * 60  # a mass log: at least MASSLOG_MIN_ENEMIES enemies logged in within this
+MASSLOG_MIN_ENEMIES = 5
 LONG_SESSION_SECONDS = 5 * 3600  # :zzz: for an enemy online longer than this
 MESSAGE_BUDGET = 5900
 EMBED_BUDGET = MESSAGE_BUDGET // 2
@@ -81,13 +82,9 @@ def base_name(channel_name: str, default: str) -> str:
 
 # --- masslog ----------------------------------------------------------------
 
-def required_zaps(enemies: int, floor: int = 3) -> int:
-    base = 0.60 if enemies <= 5 else 0.55 if enemies <= 10 else 0.40 if enemies <= 20 else 0.32
-    return max(floor, math.ceil(enemies * base * 1.20))
-
-
-def is_masslog(zaps: int, enemies: int) -> bool:
-    return zaps >= required_zaps(enemies)
+def is_masslog(logins: int, min_enemies: int = MASSLOG_MIN_ENEMIES) -> bool:
+    """Enough enemies logged in within the mass log window."""
+    return logins >= min_enemies
 
 
 # --- one server's list ------------------------------------------------------
@@ -108,7 +105,7 @@ class OnlineList:
     enemies: int
     total: int
     masslog: bool
-    fresh_enemies: list[str] = field(default_factory=list)  # lines of enemies who just logged in
+    fresh_enemies: list[str] = field(default_factory=list)  # lines of enemies who logged in within the window
 
 
 MASSLOG_EVERYONE = "everyone"
@@ -124,19 +121,20 @@ def masslog_mode(world: WorldConfig) -> str:
 
 
 def build(world_online: WorldOnline, lists: GuildLists, world: WorldConfig, guild_of: dict[str, str],
-          now: float | None = None) -> OnlineList:
+          now: float | None = None, masslog_window: float = MASSLOG_WINDOW_SECONDS,
+          masslog_min: int = MASSLOG_MIN_ENEMIES) -> OnlineList:
     """`guild_of` maps a character name to its guild, from whatever sheets are known."""
     now = now or time.time()
     rows: list[Row] = []
-    zaps = 0
     fresh: list[str] = []
     for player in sorted(world_online.players.values(), key=lambda p: -p.level):
         guild = guild_of.get(player.name, "")
         rel = relation_of(lists, player.name, guild)
         seconds, known = world_online.duration(player.name, now)
         enemy = rel.enemy
-        just_logged = known and seconds < RECENT_LOGIN_SECONDS and enemy and player.level >= world.online_enemies_min
-        zaps += just_logged
+        listed_enemy = enemy and player.level >= world.online_enemies_min
+        just_logged = known and seconds < RECENT_LOGIN_SECONDS and listed_enemy
+        in_window = known and seconds < masslog_window and listed_enemy
         mark = " :zap:" if just_logged else " :zzz:" if enemy and seconds > LONG_SESSION_SECONDS else ""
         flag = world_online.seen[player.name].flag if player.name in world_online.seen else ""
         tag = tag_mark(lists.hunted_players[player.name.lower()].tag) if player.name.lower() in lists.hunted_players \
@@ -144,7 +142,7 @@ def build(world_online: WorldOnline, lists: GuildLists, world: WorldConfig, guil
         line = (f"{vocation_emoji(player.vocation)} **{player.level}** — **[{player.name}]({char_url(player.name)})** "
                 f"{guild_icon(guild, rel)} {duration_text(seconds, known)} {flag}{mark}{tag}")
         rows.append(Row(guild, rel, vocation_key(player.vocation), player.level, re.sub(r"\s+$", "", line)))
-        if just_logged:
+        if in_window:
             fresh.append(rows[-1].line)
 
     order = {v: i for i, v in enumerate(VOCATION_ORDER)}
@@ -163,7 +161,7 @@ def build(world_online: WorldOnline, lists: GuildLists, world: WorldConfig, guil
             lines.append(f"## {icon} {title} {len(section)}")
             lines += with_headers(group_by_guild([(r.guild, r.line) for r in section]), lambda n: f"### No guild {n}")
     return OnlineList(lines, len(allies), len(enemies), len(allies) + len(enemies),
-                      is_masslog(zaps, len(enemies)) if enemies else False, fresh)
+                      is_masslog(len(fresh), masslog_min), fresh)
 
 
 def group_by_guild(rows: list[tuple[str, str]]) -> list[tuple[str, list[str]]]:

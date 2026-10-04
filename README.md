@@ -15,7 +15,7 @@ machine with your own copy of TibiaData.
 | 💀 deaths | Every ally/enemy death within ~5–10 s, coloured by side, exiva lines, pings (Fullbless, PVP, Rare Boss), killers of allies auto-added to hunted |
 | 💖 levels | Level-ups, batched and silent |
 | 📈 online | Only allies and enemies, grouped by guild, ⚡ fresh logins; the channel name carries the counts |
-| Mass log | Alert in deaths when many enemies log in at once, ~5 s after tibia.com shows it |
+| Mass log | Alert in deaths when 5+ enemies log in within 5 minutes, ~5 s after tibia.com shows it (`MASSLOG_*` in `.env`) |
 | 📊 statistics, `/bosses` | Which rare bosses are due today, from daily kill statistics |
 | `/split` | Paste the party hunt analyser, get the transfer commands |
 | `/privatehunt` | Pick a party: private voice channel, party moved in, gone when empty |
