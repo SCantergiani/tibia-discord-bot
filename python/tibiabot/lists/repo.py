@@ -31,7 +31,21 @@ async def load_lists(pool: asyncpg.Pool) -> GuildLists:
         for row in await pool.fetch(f"SELECT name, reason, reason_text, added_by FROM {GUILD_TABLES[hunted]}"):
             lists.guilds(hunted)[row["name"].lower()] = ListedGuild(row["name"].lower(), row["reason"],
                                                                      row["reason_text"], row["added_by"])
+    for row in await pool.fetch("SELECT LOWER(guild_name) AS g, LOWER(name) AS n FROM tracked_activity "
+                                "WHERE guild_name <> ''"):
+        lists.rosters.setdefault(row["g"], set()).add(row["n"])
     return lists
+
+
+async def replace_roster(pool: asyncpg.Pool, guild_name: str, members: list[str]) -> None:
+    """The guild's rows become exactly `members` (someone who left drops out)."""
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("DELETE FROM tracked_activity WHERE LOWER(guild_name) = LOWER($1)", guild_name)
+        now = _now().replace(tzinfo=None)
+        await conn.executemany(
+            "INSERT INTO tracked_activity (name, former_names, guild_name, updated) VALUES ($1, '', $2, $3) "
+            "ON CONFLICT (name) DO UPDATE SET guild_name = EXCLUDED.guild_name, updated = EXCLUDED.updated",
+            [(m, guild_name, now) for m in members])
 
 
 async def add_player(pool: asyncpg.Pool, hunted: bool, p: ListedPlayer) -> None:

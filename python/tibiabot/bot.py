@@ -23,6 +23,7 @@ EXTENSIONS = ("tibiabot.cogs.setup", "tibiabot.cogs.lootsplit", "tibiabot.cogs.l
               "tibiabot.cogs.deaths", "tibiabot.cogs.settings")
 LIST_REVIEW_INTERVAL = 30 * 60
 CACHE_PRUNE_INTERVAL = 5 * 60
+ROSTER_REFRESH_INTERVAL = 10 * 60
 
 
 class TibiaBot(commands.Bot):
@@ -41,7 +42,8 @@ class TibiaBot(commands.Bot):
         fast = (FastLane(settings.fast_poll_seconds, settings.fast_poll_max_per_second)
                 if settings.fresh_tibiadata and settings.fast_poll_seconds > 0 else None)
         self.pollers = PollerRegistry(self.tibiadata, self.sheets, settings.poll_interval,
-                                      self._is_listed if settings.fresh_tibiadata else None, fast)
+                                      self._is_listed if settings.fresh_tibiadata else None, fast,
+                                      relevant=self._is_listed, wants_neutrals=self._wants_neutrals)
         self.lists = ListService(self)
         self.pollers.listeners.append(self._log_snapshot)
         self.pollers.listeners.append(self.lists.on_snapshot)
@@ -51,15 +53,19 @@ class TibiaBot(commands.Bot):
     def _is_listed(self, world: str, name: str, sheet) -> bool:
         """An ally or enemy of any server tracking this world: their deaths matter
         most, so their sheet is re-fetched on every poll."""
-        lower = name.lower()
         guild = (sheet.guild_name or "").lower() if sheet else ""
         for guild_id, _ in self.state.guilds_tracking(world):
             lists = self.lists.of(guild_id)
-            if lower in lists.hunted_players or lower in lists.allied_players:
+            if lists.listed(name):
                 return True
             if guild and (guild in lists.hunted_guilds or guild in lists.allied_guilds):
                 return True
         return False
+
+    def _wants_neutrals(self, world: str) -> bool:
+        """False only when every server tracking `world` hides neutral deaths and levels."""
+        return any(w.show_neutral_deaths != "false" or w.show_neutral_levels != "false"
+                   for _, w in self.state.guilds_tracking(world))
 
     @property
     def owner_user_id(self) -> int | None:
@@ -100,6 +106,8 @@ class TibiaBot(commands.Bot):
         await self.pollers.sync(self.state.tracked_worlds())
         self._background.append(asyncio.create_task(self._every(LIST_REVIEW_INTERVAL, self.lists.review_sweep),
                                                     name="list-review"))
+        self._background.append(asyncio.create_task(self._every(ROSTER_REFRESH_INTERVAL, self.lists.refresh_rosters),
+                                                    name="roster-refresh"))
         deaths_cog = self.get_cog("DeathsCog")
         if deaths_cog:
             self._background.append(asyncio.create_task(self._every(CACHE_PRUNE_INTERVAL, deaths_cog.prune),

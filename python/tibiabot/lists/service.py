@@ -126,9 +126,11 @@ class ListService:
         entry = ListedGuild(tibia_guild.name.lower(), reason_flag, reason_text, actor_id)
         pool = await self.bot.db.guild(guild.id)
         await repo.add_guild(pool, hunted, entry)
-        # The roster becomes the baseline that makes a member joining or leaving visible.
-        await repo.add_activity(pool, [(m.name, tibia_guild.name) for m in tibia_guild.members])
-        self.of(guild.id).guilds(hunted)[entry.name] = entry
+        # The roster is how a member is recognised without fetching their sheet.
+        await repo.replace_roster(pool, tibia_guild.name, [m.name for m in tibia_guild.members])
+        lists = self.of(guild.id)
+        lists.guilds(hunted)[entry.name] = entry
+        lists.rosters[entry.name] = {m.name.lower() for m in tibia_guild.members}
         return BulkOutcome(added=[tibia_guild.name])
 
     async def remove_many(self, guild: discord.Guild, hunted: bool, kind: str, names: list[str]) -> BulkOutcome:
@@ -145,6 +147,8 @@ class ListService:
                 await repo.remove_player(pool, hunted, name)
         if kind == "guild":
             await repo.remove_activity_by_guilds(pool, found)
+            for name in found:
+                lists.rosters.pop(name.lower(), None)
         else:
             await repo.remove_activity_by_names(pool, found)
         return BulkOutcome(added=found, not_found=missing)
@@ -168,6 +172,8 @@ class ListService:
         await repo.remove_activity_by_names(pool, players)
         lists.players(hunted).clear()
         lists.guilds(hunted).clear()
+        for name in guilds:
+            lists.rosters.pop(name, None)
         return len(players), len(guilds)
 
     async def log_bulk(self, guild: discord.Guild, hunted: bool, adding: bool, actor: str,
@@ -219,6 +225,30 @@ class ListService:
                     finding = review(entry, character.traded, character.world, tracked, character.deletion_date)
                     if finding:
                         await self._flag(guild_id, hunted, entry, finding)
+
+    async def refresh_rosters(self) -> None:
+        """Re-read every listed guild's member list (once per guild, however many
+        servers list it), so a new recruit counts as an ally or enemy at once."""
+        wanted: dict[str, list[int]] = {}
+        for guild_id, lists in self.lists.items():
+            for name in [*lists.hunted_guilds, *lists.allied_guilds]:
+                wanted.setdefault(name, []).append(guild_id)
+        for name, guild_ids in wanted.items():
+            try:
+                tibia_guild = await self.bot.tibiadata.guild(name)
+            except TibiaDataError as e:
+                log.debug("Roster refresh for %s failed: %s", name, e)
+                continue
+            members = [m.name for m in tibia_guild.members]
+            for guild_id in guild_ids:
+                lists = self.lists.get(guild_id)
+                if lists is None:
+                    continue
+                lists.rosters[name] = {m.lower() for m in members}
+                try:
+                    await repo.replace_roster(await self.bot.db.guild(guild_id), tibia_guild.name, members)
+                except Exception:
+                    log.exception("Could not store the %s roster for guild %s", name, guild_id)
 
     async def review_sweep(self) -> None:
         """Every server: look up a few listed players the poll hasn't seen in a day,

@@ -43,6 +43,17 @@ class GuildLists:
     hunted_guilds: dict[str, ListedGuild] = field(default_factory=dict)
     allied_players: dict[str, ListedPlayer] = field(default_factory=dict)
     allied_guilds: dict[str, ListedGuild] = field(default_factory=dict)
+    # Members of every listed guild (lowercase guild -> lowercase names), from the
+    # guild page: how a member is recognised without fetching their sheet.
+    rosters: dict[str, set[str]] = field(default_factory=dict)
+
+    def listed(self, name: str) -> bool:
+        """An ally or enemy: on a list, or in a listed guild's roster."""
+        lower = name.lower()
+        if lower in self.hunted_players or lower in self.allied_players:
+            return True
+        return any(lower in members for g, members in self.rosters.items()
+                   if g in self.hunted_guilds or g in self.allied_guilds)
 
     def players(self, hunted: bool) -> dict[str, ListedPlayer]:
         return self.hunted_players if hunted else self.allied_players

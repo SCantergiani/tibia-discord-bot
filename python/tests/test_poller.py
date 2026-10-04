@@ -153,3 +153,18 @@ async def test_fast_lane_puts_the_just_logged_out_first_and_rotates_within_budge
 
 def test_budget_is_requests_per_interval():
     assert FastLane(5, 2).budget == 10 and FastLane(1, 0.1).budget == 1
+
+
+async def test_neutral_sheets_are_skipped_when_nobody_wants_them():
+    client, sheets = FakeClient(), FakeSheets()
+    client.online = world("Enemy A", "Neutral")
+    poller = WorldPoller("Antica", client, sheets, [], relevant=enemies_only, wants_neutrals=lambda w: False)
+    snap = await poller.tick()
+    assert set(snap.characters) == {"Enemy A"}
+
+
+async def test_neutral_sheets_are_fetched_when_someone_wants_them():
+    client, sheets = FakeClient(), FakeSheets()
+    client.online = world("Enemy A", "Neutral")
+    poller = WorldPoller("Antica", client, sheets, [], relevant=enemies_only, wants_neutrals=lambda w: True)
+    assert set((await poller.tick()).characters) == {"Enemy A", "Neutral"}

@@ -41,6 +41,8 @@ class WorldSnapshot:
 Listener = Callable[[WorldSnapshot], Awaitable[None]]
 # (world, character name, last known sheet or None) -> re-fetch on every tick?
 Priority = Callable[[str, str, "Character | None"], bool]
+# world -> does any server tracking it want players who aren't allies or enemies?
+WantsNeutrals = Callable[[str], bool]
 
 
 @dataclass(frozen=True)
@@ -63,9 +65,12 @@ class FastLane:
 class WorldPoller:
     def __init__(self, world: str, client: TibiaDataClient, sheets: CharacterAgeCache,
                  listeners: list[Listener], interval: float = 60, priority: Priority | None = None,
-                 fast_lane: FastLane | None = None):
+                 fast_lane: FastLane | None = None, relevant: Priority | None = None,
+                 wants_neutrals: WantsNeutrals | None = None):
         self.world = world
         self._priority = priority
+        self._relevant = relevant
+        self._wants_neutrals = wants_neutrals
         self._fast = fast_lane if priority else None
         self._online: list[OnlinePlayer] = []
         self._rotation = 0
@@ -170,7 +175,11 @@ class WorldPoller:
 
         snapshot = WorldSnapshot(self.world, now, world.online_players,
                                  recently_offline=recently_offline, first_tick=self._ticks == 0)
-        snapshot.characters = await self._fetch_sheets([*online_names, *recently_offline])
+        names = [*online_names, *recently_offline]
+        if self._relevant and self._wants_neutrals and not self._wants_neutrals(self.world):
+            # Nobody wants neutral deaths or levels here: skip their sheets entirely.
+            names = [n for n in names if self._relevant(self.world, n, self._sheets.peek(n))]
+        snapshot.characters = await self._fetch_sheets(names)
         self._ticks += 1
         log.debug("%s: %d online, %d sheets", self.world, len(online_names), len(snapshot.characters))
         await self._notify(snapshot)
@@ -200,10 +209,13 @@ class PollerRegistry:
     """Starts a poller when the first guild tracks a world, stops it with the last."""
 
     def __init__(self, client: TibiaDataClient, sheets: CharacterAgeCache, interval: float = 60,
-                 priority: Priority | None = None, fast_lane: FastLane | None = None):
+                 priority: Priority | None = None, fast_lane: FastLane | None = None,
+                 relevant: Priority | None = None, wants_neutrals: WantsNeutrals | None = None):
         self._client = client
         self._priority = priority
         self._fast = fast_lane
+        self._relevant = relevant
+        self._wants_neutrals = wants_neutrals
         self._sheets = sheets
         self._interval = interval
         self._pollers: dict[str, WorldPoller] = {}
@@ -219,7 +231,7 @@ class PollerRegistry:
             log.info("Stopped polling %s", world)
         for world in wanted - set(self._pollers):
             poller = WorldPoller(world, self._client, self._sheets, self.listeners, self._interval, self._priority,
-                                 self._fast)
+                                 self._fast, self._relevant, self._wants_neutrals)
             self._pollers[world] = poller
             poller.start()
             log.info("Started polling %s", world)

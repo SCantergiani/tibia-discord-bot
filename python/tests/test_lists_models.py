@@ -107,3 +107,12 @@ def test_deletion_outranks_everything():
     assert review(entry(), True, "Vunira", TRACKED, "2026-10-01T00:00:00Z") == \
         scheduled_for_deletion("2026-10-01T00:00:00Z")
     assert review(entry(), False, "Antica", TRACKED, "") is None
+
+
+def test_a_listed_guilds_roster_makes_its_members_listed():
+    from tibiabot.lists.models import GuildLists, ListedGuild
+    lists = GuildLists()
+    lists.hunted_guilds["nexus"] = ListedGuild("nexus")
+    lists.rosters["nexus"] = {"scared slayer"}
+    lists.rosters["unlisted guild"] = {"random"}
+    assert lists.listed("Scared Slayer") and not lists.listed("Random") and not lists.listed("Nobody")

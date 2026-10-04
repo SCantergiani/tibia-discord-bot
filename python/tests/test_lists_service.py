@@ -150,3 +150,27 @@ async def test_prune_never_removes_on_a_failed_lookup(service):
     service.bot.sheets.down.add("bubble")
     await service._prune_flagged(GUILD_ID)
     assert "bubble" in lists.hunted_players
+
+
+async def test_rosters_load_and_refresh(service):
+    await service.add_many(FakeGuild(), True, "guild", ["Wrath"], "", "42")
+    assert service.of(GUILD_ID).listed("Member One")
+    await service.load(GUILD_ID)
+    assert service.of(GUILD_ID).rosters["wrath"] == {"member one", "member two"}
+    real_guild = service.bot.tibiadata.guild
+
+    async def recruited(name):
+        g = await real_guild(name)
+        return Guild(g.name, g.world, [*g.members, GuildMember("New Recruit", "Member", "Knight", 10, "online")])
+
+    service.bot.tibiadata.guild = recruited
+    await service.refresh_rosters()
+    assert service.of(GUILD_ID).listed("New Recruit")
+    await service.load(GUILD_ID)
+    assert "new recruit" in service.of(GUILD_ID).rosters["wrath"]
+
+
+async def test_removing_a_guild_forgets_its_roster(service):
+    await service.add_many(FakeGuild(), True, "guild", ["Wrath"], "", "42")
+    await service.remove_many(FakeGuild(), True, "guild", ["wrath"])
+    assert not service.of(GUILD_ID).listed("Member One")
