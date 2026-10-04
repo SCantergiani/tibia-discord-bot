@@ -14,7 +14,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from tibiabot import embeds
+from tibiabot import embeds, visibility
 from tibiabot.commands_guide import COMMANDS_CHANNEL, ensure_guide, same_channel_name
 from tibiabot.db import repos
 from tibiabot.db.repos import NONE_ID, WorldConfig
@@ -153,8 +153,16 @@ class SetupCog(commands.Cog):
         if not isinstance(channel, discord.TextChannel):
             return False
         existing = await find_role_panel(channel, world)
-        await post_role_panel(channel, world, existing)
+        await post_role_panel(channel, world, existing, info.member_role or "0")
         return existing is None
+
+    async def _apply_member_role(self, guild: discord.Guild) -> None:
+        """New or recreated channels follow the member role picked in /settings."""
+        state = self.bot.state.guild(guild.id)
+        role_id = state.info.member_role if state.info else ""
+        role = guild.get_role(int(role_id)) if role_id and role_id.isdigit() else None
+        if role is not None:
+            await visibility.apply(guild, state.info, list(state.worlds.values()), role)
 
     async def _moderator_role(self, guild: discord.Guild, pool) -> None:
         try:
@@ -258,6 +266,7 @@ class SetupCog(commands.Cog):
             state = self.bot.state.guild(guild.id)
             state.info = await repos.get_discord_info(pool) or info
             self.bot.state.set_world(guild.id, config)
+            await self._apply_member_role(guild)
             await self.bot.pollers.sync(self.bot.state.tracked_worlds())
         except discord.Forbidden as e:
             log.warning("/init %s on %s refused while %s: %s", name, guild.id, step, e)
@@ -331,6 +340,7 @@ class SetupCog(commands.Cog):
             state.info = await repos.get_discord_info(pool) or info
             config = await repos.get_world(pool, name)
             self.bot.state.set_world(guild.id, config)
+            await self._apply_member_role(guild)
             if await self._ensure_role_panel(guild, state.info, config):
                 fixed.append("role buttons")
         except discord.Forbidden as e:

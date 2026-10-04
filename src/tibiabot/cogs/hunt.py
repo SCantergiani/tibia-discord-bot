@@ -103,7 +103,7 @@ class HuntForm(discord.ui.Modal, title="Start a hunt"):
         name = (self.hunt_name.value or "").strip() or None
         category = getattr(interaction.channel, "category", None)
         info = bot.state.guild(guild.id).info
-        viewers = guild.get_role(int(info.hunt_role)) if info and (info.hunt_role or "").isdigit() else None
+        viewers = guild.get_role(int(info.member_role)) if info and (info.member_role or "").isdigit() else None
         try:
             channel = await guild.create_voice_channel(channel_name(name), category=category,
                                                        overwrites=party_overwrites(guild, members, viewers),

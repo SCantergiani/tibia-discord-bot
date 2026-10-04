@@ -15,8 +15,17 @@ CREATE TABLE IF NOT EXISTS discord_info (
   moderator_role VARCHAR(255) DEFAULT '0',
   PRIMARY KEY (guild_name)
 );
--- Python-only addition: the role that can see /privatehunt channels ('0' = nobody but the party).
-ALTER TABLE discord_info ADD COLUMN IF NOT EXISTS hunt_role VARCHAR(255) DEFAULT '0';
+-- Python-only addition: the server's member role, the only role that can see the bot's
+-- channels and /privatehunt channels ('0' = everyone sees the channels, hunts are party-only).
+-- It started out as hunt_role (hunts only); rename it where that is what exists.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'discord_info' AND column_name = 'hunt_role')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'discord_info' AND column_name = 'member_role') THEN
+    ALTER TABLE discord_info RENAME COLUMN hunt_role TO member_role;
+  END IF;
+END $$;
+ALTER TABLE discord_info ADD COLUMN IF NOT EXISTS member_role VARCHAR(255) DEFAULT '0';
 
 CREATE TABLE IF NOT EXISTS hunted_players (
   name VARCHAR(255) NOT NULL,

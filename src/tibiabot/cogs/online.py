@@ -117,7 +117,12 @@ class OnlineCog(commands.Cog):
         if not isinstance(channel, discord.TextChannel):
             return
         self._last_alert[key] = time.monotonic()
-        role = guild.get_role(int(world.masslog_role)) if mode == "role" else None
+        if mode == "members":
+            info = self.bot.state.guild(guild.id).info
+            member_role = info.member_role if info else ""
+            role = guild.get_role(int(member_role)) if member_role and member_role.isdigit() else None
+        else:
+            role = guild.get_role(int(world.masslog_role)) if mode == "role" else None
         content = "@everyone" if mode == "everyone" else role.mention if role else None
         who = "\n".join(built.fresh_enemies[:25])
         more = f"\n*…and {len(built.fresh_enemies) - 25} more*" if len(built.fresh_enemies) > 25 else ""

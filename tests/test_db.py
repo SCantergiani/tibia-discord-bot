@@ -70,11 +70,16 @@ async def test_only_known_columns_can_be_repaired(db):
         await repos.update_world_column(pool, "Antica", "name = 'x'; --", "1")
 
 
-async def test_hunt_role_round_trips_and_is_added_to_existing_databases(db):
+async def test_member_role_round_trips_and_old_hunt_role_columns_are_renamed(db):
     pool = await db.init_guild(TEST_GUILD)
-    await pool.execute("ALTER TABLE discord_info DROP COLUMN hunt_role")  # as a database from before it existed
+    # a database from when this was hunt_role (hunts only)
+    await pool.execute("ALTER TABLE discord_info RENAME COLUMN member_role TO hunt_role")
+    await pool.execute("INSERT INTO discord_info (guild_name, guild_owner, admin_category, admin_channel, "
+                       "boosted_channel, boosted_messageid, flags, created, hunt_role) "
+                       "VALUES ('G', 'o', '1', '2', '3', '0', '0', now(), '777')")
     pool = await db.init_guild(TEST_GUILD)
+    assert (await repos.get_discord_info(pool)).member_role == "777"
     info = repos.new_discord_info("G", "owner", "1", "2", "3")
-    info.hunt_role = "555"
+    info.member_role = "555"
     await repos.save_discord_info(pool, info)
-    assert (await repos.get_discord_info(pool)).hunt_role == "555"
+    assert (await repos.get_discord_info(pool)).member_role == "555"

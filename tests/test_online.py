@@ -215,3 +215,22 @@ async def test_alert_pings_the_chosen_audience_once_per_cooldown():
     guild3 = SimpleNamespace(id=3, get_channel=lambda _: off, get_role=lambda _: None)
     await cog._masslog_alert(guild3, replace(WORLD, masslog_role="0"), built)
     assert off.sent == []
+
+
+async def test_masslog_can_ping_the_member_role():
+    assert online.masslog_mode(replace(WORLD, masslog_role="members")) == "members"
+    channel = FakeChannel()
+    member_role = SimpleNamespace(mention="<@&999>", id=999)
+    guild = SimpleNamespace(id=5, get_channel=lambda _: channel, get_role=lambda rid: member_role if rid == 999 else None)
+    info = SimpleNamespace(member_role="999")
+    bot = SimpleNamespace(pollers=SimpleNamespace(listeners=[]),
+                          state=SimpleNamespace(guild=lambda _: SimpleNamespace(info=info)))
+    cog = OnlineCog(bot)
+    await cog._masslog_alert(guild, replace(WORLD, masslog_role="members"), online.OnlineList([], 0, 5, 5, True, ["a"]))
+    assert channel.sent[0][0] == "<@&999>"
+
+
+def test_role_panel_names_the_member_role_for_mass_logs():
+    embed, view = role_panel(replace(WORLD, masslog_role="members"), member_role="999")
+    assert "Mass logs ping <@&999>" in embed.description
+    assert "role:masslog_role:Inabra" not in [c["custom_id"] for r in view.to_components() for c in r["components"]]

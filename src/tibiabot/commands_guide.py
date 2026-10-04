@@ -28,7 +28,8 @@ SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         ("repair", "Recreate a world's deleted channels or roles, and the role buttons."),
         ("remove", "Stop tracking a world and delete everything `/init` made for it."),
         ("settings", "Fullbless level, exiva lists, level filters for channels and the online list, neutrals, "
-                     "mass log alerts, the command log channel, and who can see private hunts."),
+                     "mass log alerts, the command log channel, and the member role (only that role sees my channels "
+                     "and private hunts)."),
         ("clear", "Empty a world's deaths and/or levels channel (asks first)."),
     ]),
 ]

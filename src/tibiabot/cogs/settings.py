@@ -12,10 +12,10 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from tibiabot import adminlog, embeds, emojis
+from tibiabot import adminlog, embeds, emojis, visibility
 from tibiabot.db import repos
 from tibiabot.db.repos import WorldConfig
-from tibiabot.online import MASSLOG_EVERYONE, masslog_mode
+from tibiabot.online import MASSLOG_EVERYONE, MASSLOG_MEMBERS, masslog_mode
 from tibiabot.permissions import has_manage_server
 
 if TYPE_CHECKING:
@@ -26,8 +26,9 @@ log = logging.getLogger(__name__)
 FULLBLESS, EXIVA, CHANNEL_FILTER, NEUTRAL, COMMAND_LOG = "fullbless", "exiva", "chanfilter", "neutral", "cmdlog"
 ONLINE_FILTER = "onlinefilter"
 MASSLOG = "masslog"
-HUNT_ROLE = "huntrole"
-MASSLOG_MODES = [("Ping the Masslog role", "role"), ("Ping everyone", "everyone"), ("Off", "off")]
+MEMBER_ROLE = "memberrole"
+MASSLOG_MODES = [("Ping the Masslog role", "role"), ("Ping the member role", "members"),
+                 ("Ping everyone", "everyone"), ("Off", "off")]
 SHOW_HIDE = [("Show", "show"), ("Hide", "hide")]
 SETTINGS_THUMBNAIL = f"{embeds.WIKI_FILE}Armillary_Sphere_(TibiaMaps).gif"
 
@@ -45,7 +46,7 @@ def settings_view() -> discord.ui.View:
                                  (MASSLOG, "Mass Log", emojis.get("masslog") or "⚡"),
                                  (NEUTRAL, "Neutrals", "⚪"),
                                  (COMMAND_LOG, "Command Log", "🖥️"),
-                                 (HUNT_ROLE, "Hunt Visibility", "🏹")):
+                                 (MEMBER_ROLE, "Member Role", "👥")):
         view.add_item(SettingsButton(action, label=label, emoji=emoji))
     return view
 
@@ -92,7 +93,7 @@ def _show_hide(stored: str) -> str:
 class SettingsForm(discord.ui.Modal):
     TITLES = {FULLBLESS: "Fullbless level", EXIVA: "Exiva lists", CHANNEL_FILTER: "Channel level filters",
               NEUTRAL: "Neutral players", COMMAND_LOG: "Command log", ONLINE_FILTER: "Online list filters",
-              MASSLOG: "Mass log alert", HUNT_ROLE: "Hunt visibility"}
+              MASSLOG: "Mass log alert", MEMBER_ROLE: "Member role"}
 
     def __init__(self, action: str, worlds: list[WorldConfig]):
         super().__init__(title=self.TITLES[action], custom_id=f"settingsform:{action}", timeout=None)
@@ -101,7 +102,7 @@ class SettingsForm(discord.ui.Modal):
         self.world = self.level = self.option = self.levels = self.deaths = self.channel = None
         self.online_inputs: dict[str, discord.ui.TextInput] = {}
         self.role: discord.ui.RoleSelect | None = None
-        if action not in (COMMAND_LOG, HUNT_ROLE) and len(worlds) > 1:
+        if action not in (COMMAND_LOG, MEMBER_ROLE) and len(worlds) > 1:
             self.world = discord.ui.Select(custom_id="world", placeholder="Pick a world", required=True,
                                            options=[discord.SelectOption(label=w.name, value=w.name) for w in worlds])
             self.add_item(discord.ui.Label(text="Which world?", description="The world this setting applies to.",
@@ -140,12 +141,12 @@ class SettingsForm(discord.ui.Modal):
                 options=[discord.SelectOption(label=l, value=v, default=v == current) for l, v in MASSLOG_MODES])
             self.add_item(discord.ui.Label(text="When many enemies log in at once", component=self.option,
                                            description="Who the alert in the deaths channel pings."))
-        elif action == HUNT_ROLE:
+        elif action == MEMBER_ROLE:
             self.role = discord.ui.RoleSelect(custom_id="role", min_values=0, max_values=1, required=False,
-                                              placeholder="Nobody but the party")
-            self.add_item(discord.ui.Label(text="Who can see /privatehunt channels", component=self.role,
-                                           description="Members with this role see hunts and who is in them; "
-                                                       "only the party can join. Empty: hidden."))
+                                              placeholder="Everyone (no member role)")
+            self.add_item(discord.ui.Label(text="Your guild members' role", component=self.role,
+                                           description="Only this role sees my channels and private hunts. "
+                                                       "Leave empty: everyone sees them."))
         elif action == COMMAND_LOG:
             self.channel = discord.ui.ChannelSelect(custom_id="channel", channel_types=[discord.ChannelType.text],
                                                     placeholder="Pick a channel", min_values=1, max_values=1)
@@ -164,8 +165,8 @@ class SettingsForm(discord.ui.Modal):
         if self.action == MASSLOG:
             await self._masslog(bot, interaction)
             return
-        if self.action == HUNT_ROLE:
-            await self._hunt_role(bot, interaction)
+        if self.action == MEMBER_ROLE:
+            await self._member_role(bot, interaction)
             return
         state = bot.state.guild(interaction.guild_id)
         name = self.worlds[0].name if len(self.worlds) == 1 else (self.world.values[0] if self.world.values else "")
@@ -223,20 +224,36 @@ class SettingsForm(discord.ui.Modal):
                 problem = problem or number(field, column)
         return changes, problem
 
-    async def _hunt_role(self, bot: TibiaBot, interaction: discord.Interaction) -> None:
+    async def _member_role(self, bot: TibiaBot, interaction: discord.Interaction) -> None:
+        guild = interaction.guild
         state = bot.state.guild(interaction.guild_id)
         if state.info is None:
             await interaction.followup.send(embed=embeds.error("Run `/init` first."), ephemeral=True)
             return
-        role = self.role.values[0] if self.role.values else None
-        state.info.hunt_role = str(role.id) if role else "0"
+        picked = self.role.values[0] if self.role.values else None
+        role = guild.get_role(picked.id) if picked else None
+        if role is not None and role == guild.default_role:
+            role = None  # @everyone is the same as no member role
+        previous = guild.get_role(int(state.info.member_role)) if (state.info.member_role or "").isdigit() else None
+        state.info.member_role = str(role.id) if role else "0"
         await repos.save_discord_info(await bot.db.guild(interaction.guild_id), state.info)
-        shown = role.mention if role else "**nobody but the party**"
-        await adminlog.post(interaction.guild, state.info,
-                            f"{adminlog.user(interaction.user.name)} set who can see hunts to {shown}.",
+        failed = await visibility.apply(guild, state.info, list(state.worlds.values()), role, previous)
+        for world in state.worlds.values():
+            if masslog_mode(world) == MASSLOG_MEMBERS:
+                await refresh_role_panel(guild, state.info, world)
+        shown = role.mention if role else "**everyone**"
+        await adminlog.post(guild, state.info,
+                            f"{adminlog.user(interaction.user.name)} set the member role to {shown}.",
                             SETTINGS_THUMBNAIL)
-        await interaction.followup.send(embed=embeds.ok(
-            f"New `/privatehunt` channels are visible to {shown}; only the party can join."), ephemeral=True)
+        text = (f"My channels are now visible to {shown} only (the command log stays admin-only), and new "
+                f"`/privatehunt` channels can be seen by them; only the party can join."
+                if role else "My channels are visible to everyone again; private hunts are party-only.")
+        if failed:
+            text += (f"\n\n{emojis.get('no')} Discord refused changing: {', '.join(failed)}. Check my role has "
+                     "**Manage Roles** and sits above that role.")
+        if role is None and any(masslog_mode(w) == MASSLOG_MEMBERS for w in state.worlds.values()):
+            text += "\n\nMass log alerts set to ping the member role will now post without a ping."
+        await interaction.followup.send(embed=embeds.ok(text), ephemeral=True)
 
     async def _masslog(self, bot: TibiaBot, interaction: discord.Interaction) -> None:
         state = bot.state.guild(interaction.guild_id)
@@ -258,6 +275,12 @@ class SettingsForm(discord.ui.Modal):
                                                 ephemeral=True)
                 return
             value = str(role.id)
+        elif mode == "members":
+            if not (state.info and (state.info.member_role or "").isdigit() and state.info.member_role != "0"):
+                await interaction.followup.send(embed=embeds.error(
+                    "Set your member role first: `/settings` → **Member Role**."), ephemeral=True)
+                return
+            value = MASSLOG_MEMBERS
         else:
             value = MASSLOG_EVERYONE if mode == "everyone" else "0"
         await repos.update_world_setting(await bot.db.guild(interaction.guild_id), world.name, "masslog_role", value)
@@ -314,7 +337,7 @@ ROLE_BUTTONS = (("fullbless_role", "inq", discord.ButtonStyle.success),
 MASSLOG_COLOR = discord.Color.from_rgb(219, 175, 72)
 
 
-def role_panel(world: WorldConfig) -> tuple[discord.Embed, discord.ui.View]:
+def role_panel(world: WorldConfig, member_role: str = "0") -> tuple[discord.Embed, discord.ui.View]:
     e = emojis.get
     lines = [f"{e('inq')}<@&{world.fullbless_role}> If an enemy fullblesses and is over level "
              f"`{world.fullbless_level}`",
@@ -325,6 +348,8 @@ def role_panel(world: WorldConfig) -> tuple[discord.Embed, discord.ui.View]:
         lines.append(f"{e('masslog') or '⚡'}<@&{world.masslog_role}> If many enemies log in at once")
     elif mode == "everyone":
         lines.append(f"{e('masslog') or '⚡'} Mass logs ping **everyone** here (change in `/settings`)")
+    elif mode == "members" and member_role.isdigit() and member_role != "0":
+        lines.append(f"{e('masslog') or '⚡'} Mass logs ping <@&{member_role}> (change in `/settings`)")
     embed = discord.Embed(title=f":crossed_swords: {world.name} :crossed_swords:", color=embeds.BRAND_COLOR,
                           url=f"https://www.tibia.com/community/?subtopic=worlds&world={world.name}",
                           description="\n".join(lines))
@@ -350,10 +375,10 @@ async def find_role_panel(channel: discord.TextChannel, world: WorldConfig) -> d
     return None
 
 
-async def post_role_panel(channel: discord.TextChannel, world: WorldConfig, existing: discord.Message | None = None
-                          ) -> None:
+async def post_role_panel(channel: discord.TextChannel, world: WorldConfig, existing: discord.Message | None = None,
+                          member_role: str = "0") -> None:
     """Edit the world's panel in place when there is one, else post it."""
-    embed, view = role_panel(world)
+    embed, view = role_panel(world, member_role)
     try:
         if existing:
             await existing.edit(embed=embed, view=view, allowed_mentions=discord.AllowedMentions.none())
@@ -366,7 +391,7 @@ async def post_role_panel(channel: discord.TextChannel, world: WorldConfig, exis
 async def refresh_role_panel(guild: discord.Guild, info, world: WorldConfig) -> None:
     channel = guild.get_channel(int(info.boosted_channel)) if info and info.boosted_channel.isdigit() else None
     if isinstance(channel, discord.TextChannel):
-        await post_role_panel(channel, world, await find_role_panel(channel, world))
+        await post_role_panel(channel, world, await find_role_panel(channel, world), info.member_role or "0")
 
 
 class RoleButton(discord.ui.DynamicItem[discord.ui.Button],

@@ -112,13 +112,14 @@ class OnlineList:
 
 
 MASSLOG_EVERYONE = "everyone"
+MASSLOG_MEMBERS = "members"  # the server's member role, whichever it is when the alert goes out
 
 
 def masslog_mode(world: WorldConfig) -> str:
-    """"role", "everyone" or "off", read from the masslog_role column."""
+    """"role", "members", "everyone" or "off", read from the masslog_role column."""
     value = world.masslog_role or "0"
-    if value == MASSLOG_EVERYONE:
-        return "everyone"
+    if value in (MASSLOG_EVERYONE, MASSLOG_MEMBERS):
+        return value
     return "role" if value.isdigit() and value != "0" else "off"
 
 
