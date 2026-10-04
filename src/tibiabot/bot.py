@@ -7,7 +7,7 @@ import discord
 from discord.ext import commands
 
 from tibiabot import emojis
-from tibiabot.commands_guide import ensure_guide
+from tibiabot.commands_guide import ensure_guide, ensure_readonly_channel, upsert_message
 from tibiabot.config import Settings
 from tibiabot.db import repos
 from tibiabot.db.database import Database
@@ -15,7 +15,9 @@ from tibiabot.lists.service import ListService
 from tibiabot.online import WorldOnline
 from tibiabot.poller import FastLane, PollerRegistry, WorldSnapshot
 from tibiabot.ratelimit import AdaptiveRate
+from tibiabot.stats import Stats
 from tibiabot.state import BotState
+from tibiabot.status import STATUS_CHANNEL, status_embed
 from tibiabot.tibiadata.age_cache import CharacterAgeCache
 from tibiabot.tibiadata.client import TibiaDataClient
 from tibiabot.worlds import WorldList
@@ -55,9 +57,11 @@ class TibiaBot(commands.Bot):
         fast = (FastLane(settings.fast_poll_seconds, settings.fast_poll_max_per_second,
                          ally_interval=settings.ally_poll_seconds, limiter=self.rate)
                 if self.rate else None)
+        self.stats = Stats()
         self.pollers = PollerRegistry(self.tibiadata, self.sheets, settings.poll_interval,
                                       self._listed_side if settings.fresh_tibiadata else None, fast,
-                                      relevant=self._listed_side, wants_neutrals=self._wants_neutrals)
+                                      relevant=self._listed_side, wants_neutrals=self._wants_neutrals,
+                                      stats=self.stats)
         self.lists = ListService(self)
         self.online: dict[str, WorldOnline] = {}  # world -> who is online, see cogs/online.py
         self.pollers.listeners.append(self._log_snapshot)
@@ -126,6 +130,7 @@ class TibiaBot(commands.Bot):
         if not self.settings.dev_guild_id.isdigit():
             await self._clear_dev_commands()
         await self._refresh_guides()
+        self._background.append(asyncio.create_task(self._every(60, self._refresh_status), name="status"))
         await self.pollers.sync(self.state.tracked_worlds())
         self._background.append(asyncio.create_task(self._every(LIST_REVIEW_INTERVAL, self.lists.review_sweep),
                                                     name="list-review"))
@@ -142,16 +147,29 @@ class TibiaBot(commands.Bot):
             self._background.append(asyncio.create_task(self._every(CACHE_PRUNE_INTERVAL, deaths_cog.prune),
                                                         name="death-cache-prune"))
 
+    def _bot_category(self, guild: discord.Guild) -> discord.CategoryChannel | None:
+        info = self.state.guild(guild.id).info
+        category = guild.get_channel(int(info.admin_category)) if info and info.admin_category.isdigit() else None
+        return category if isinstance(category, discord.CategoryChannel) else None
+
     async def _refresh_guides(self) -> None:
         """Bring every server's 📖 commands channel up to date with this version's commands."""
         for guild in self.guilds:
-            info = self.state.guild(guild.id).info
-            category = guild.get_channel(int(info.admin_category)) if info and info.admin_category.isdigit() else None
-            if isinstance(category, discord.CategoryChannel):
+            if category := self._bot_category(guild):
                 try:
                     await ensure_guide(guild, category)
                 except discord.HTTPException as e:
                     log.warning("Could not update the commands channel in %s: %s", guild.name, e)
+
+    async def _refresh_status(self) -> None:
+        """Every minute: each server's 📡 status channel shows what the bot measures now."""
+        for guild in self.guilds:
+            if category := self._bot_category(guild):
+                try:
+                    channel = await ensure_readonly_channel(guild, category, STATUS_CHANNEL)
+                    await upsert_message(channel, status_embed(self, guild.id))
+                except discord.HTTPException as e:
+                    log.warning("Could not update the status channel in %s: %s", guild.name, e)
 
     async def _clear_dev_commands(self) -> None:
         """With global commands, drop any server-only copies left from testing with

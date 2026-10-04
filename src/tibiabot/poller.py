@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Awaitable, Callable
 
 from tibiabot.ratelimit import AdaptiveRate
+from tibiabot.stats import Stats
 from tibiabot.tibiadata.age_cache import CharacterAgeCache
 from tibiabot.tibiadata.client import NotFound, TibiaDataClient, TibiaDataError
 from tibiabot.tibiadata.models import Character, OnlinePlayer, World
@@ -90,8 +91,10 @@ class WorldPoller:
     def __init__(self, world: str, client: TibiaDataClient, sheets: CharacterAgeCache,
                  listeners: list[Listener], interval: float = 60, priority: Priority | None = None,
                  fast_lane: FastLane | None = None, relevant: Priority | None = None,
-                 wants_neutrals: WantsNeutrals | None = None):
+                 wants_neutrals: WantsNeutrals | None = None, stats: "Stats | None" = None):
         self.world = world
+        self._stats = stats
+        self.last_poll: float | None = None  # wall time of the last full poll
         self._priority = priority
         self._relevant = relevant
         self._wants_neutrals = wants_neutrals
@@ -225,11 +228,13 @@ class WorldPoller:
                 continue
             due.append((side != "enemy", name in online, last, -self._last_seen.get(name, 0.0), name))
         due.sort()
-        picked = [entry[-1] for entry in due[:self._fast.budget]]
-        for name in picked:
+        picked = due[:self._fast.budget]
+        for is_ally, _, last, _, name in picked:
+            if self._stats is not None and last != float("-inf"):
+                self._stats.record_check("ally" if is_ally else "enemy", now - last)
             self._last_fast[name] = now
         self._last_fast = {n: t for n, t in self._last_fast.items() if n in self._last_seen or n in online}
-        return picked
+        return [entry[-1] for entry in picked]
 
     async def fast_tick(self) -> WorldSnapshot | None:
         if self._ticks == 0:
@@ -267,6 +272,7 @@ class WorldPoller:
         self._last_seen = {n: t for n, t in self._last_seen.items() if now - t <= RECENTLY_OFFLINE_SECONDS}
         recently_offline = sorted(set(self._last_seen) - online_names)
         self._online = world.online_players
+        self.last_poll = now
 
         snapshot = WorldSnapshot(self.world, now, world.online_players,
                                  recently_offline=recently_offline, first_tick=self._ticks == 0)
@@ -307,7 +313,9 @@ class PollerRegistry:
 
     def __init__(self, client: TibiaDataClient, sheets: CharacterAgeCache, interval: float = 60,
                  priority: Priority | None = None, fast_lane: FastLane | None = None,
-                 relevant: Priority | None = None, wants_neutrals: WantsNeutrals | None = None):
+                 relevant: Priority | None = None, wants_neutrals: WantsNeutrals | None = None,
+                 stats: "Stats | None" = None):
+        self._stats = stats
         self._client = client
         self._priority = priority
         self._fast = fast_lane
@@ -322,13 +330,16 @@ class PollerRegistry:
     def worlds(self) -> set[str]:
         return set(self._pollers)
 
+    def get(self, world: str) -> WorldPoller | None:
+        return self._pollers.get(world)
+
     async def sync(self, wanted: set[str]) -> None:
         for world in set(self._pollers) - wanted:
             await self._pollers.pop(world).stop()
             log.info("Stopped polling %s", world)
         for world in wanted - set(self._pollers):
             poller = WorldPoller(world, self._client, self._sheets, self.listeners, self._interval, self._priority,
-                                 self._fast, self._relevant, self._wants_neutrals)
+                                 self._fast, self._relevant, self._wants_neutrals, self._stats)
             self._pollers[world] = poller
             poller.start()
             log.info("Started polling %s", world)

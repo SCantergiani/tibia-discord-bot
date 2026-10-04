@@ -34,6 +34,7 @@ class AdaptiveRate:
         self._last_change = clock()
         self._paused_until = 0.0
         self._next_slot = 0.0
+        self.last_pushback: float | None = None  # wall time, for the status channel
 
     @property
     def paused(self) -> bool:
@@ -48,6 +49,7 @@ class AdaptiveRate:
         self.rate = max(self.floor, self.rate / 2)
         self._paused_until = now + self._pause
         self._last_change = now
+        self.last_pushback = time.time()
         log.warning("tibia.com pushed back (%s): fast checks %.2f -> %.2f/s, pausing %.0fs",
                     status, before, self.rate, self._pause)
 

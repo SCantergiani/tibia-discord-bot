@@ -38,7 +38,8 @@ CHANNELS = (
     "📈 **online**: allies and enemies online, ⚡ fresh logins; the channel name shows 🤍 allies and 💀 enemies.\n"
     "💀 **deaths**: ally/enemy deaths within seconds, pings, exiva lines, mass log alerts.\n"
     "💖 **levels**: level-ups.  📊 **statistics**: bosses due, after server save.\n"
-    "👑 **notifications**: buttons to get the Fullbless, Rare Boss, PVP and Masslog ping roles."
+    "👑 **notifications**: buttons to get the Fullbless, Rare Boss, PVP and Masslog ping roles.\n"
+    "📡 **status**: how often allies and enemies are really checked, and how fast deaths get posted."
 )
 
 
@@ -59,21 +60,30 @@ def same_channel_name(stored: str, wanted: str) -> bool:
     return stored == wanted.replace(" ", "-") or stored == wanted
 
 
-async def ensure_guide(guild: discord.Guild, category: discord.CategoryChannel) -> discord.TextChannel:
-    """The read-only commands channel in `category`, with the guide as its one message,
-    created or brought up to date."""
-    channel = next((c for c in category.text_channels if same_channel_name(c.name, COMMANDS_CHANNEL)), None)
+async def ensure_readonly_channel(guild: discord.Guild, category: discord.CategoryChannel,
+                                  name: str) -> discord.TextChannel:
+    """A channel in the bot's category that everyone may read and only the bot posts in."""
+    channel = next((c for c in category.text_channels if same_channel_name(c.name, name)), None)
     if channel is None:
-        channel = await guild.create_text_channel(COMMANDS_CHANNEL, category=category, overwrites={
+        channel = await guild.create_text_channel(name, category=category, overwrites={
             guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, embed_links=True,
                                                   read_message_history=True),
-            guild.default_role: discord.PermissionOverwrite(view_channel=True, send_messages=False,
-                                                            create_public_threads=False),
+            guild.default_role: discord.PermissionOverwrite(send_messages=False, create_public_threads=False),
         })
-    embed = guide_embed()
-    mine = [m async for m in channel.history(limit=20) if m.author.id == guild.me.id]
+    return channel
+
+
+async def upsert_message(channel: discord.TextChannel, embed: discord.Embed) -> None:
+    """Keep the bot's one message in `channel` showing `embed`: post it, or edit it when it changed."""
+    mine = [m async for m in channel.history(limit=20) if m.author.id == channel.guild.me.id]
     if not mine:
         await channel.send(embed=embed)
     elif not (mine[0].embeds and mine[0].embeds[0].to_dict() == embed.to_dict()):
         await mine[0].edit(embed=embed)
+
+
+async def ensure_guide(guild: discord.Guild, category: discord.CategoryChannel) -> discord.TextChannel:
+    """The read-only commands channel in `category`, with the guide as its one message."""
+    channel = await ensure_readonly_channel(guild, category, COMMANDS_CHANNEL)
+    await upsert_message(channel, guide_embed())
     return channel

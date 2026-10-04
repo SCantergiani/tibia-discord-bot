@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import timezone
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import discord
@@ -76,6 +76,11 @@ class DeathsCog(commands.Cog):
             # Tibia only updates a sheet's level on logout, so the first poll sees
             # every level gained this session at once. Remember them, post none.
             ups = []
+        if not snapshot.first_tick:  # the first poll also finds deaths from before the bot started
+            now = datetime.now(timezone.utc)
+            for character, death in found:
+                side = self.bot._listed_side(snapshot.world, character.name, character) or "neutral"
+                self.bot.stats.record_death(side, (now - death.time).total_seconds())
         if not found and not ups:
             return
         killer_levels = await self._killer_levels(snapshot, found) if found else {}

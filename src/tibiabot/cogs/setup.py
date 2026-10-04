@@ -16,6 +16,7 @@ from discord.ext import commands
 
 from tibiabot import embeds, visibility
 from tibiabot.commands_guide import COMMANDS_CHANNEL, ensure_guide, same_channel_name
+from tibiabot.status import STATUS_CHANNEL
 from tibiabot.db import repos
 from tibiabot.db.repos import NONE_ID, WorldConfig
 from tibiabot.cogs.settings import find_role_panel, post_role_panel
@@ -189,13 +190,12 @@ class SetupCog(commands.Cog):
         if info is None:
             return
         category = guild.get_channel(int(info.admin_category)) if info.admin_category.isdigit() else None
-        guide = next((c for c in getattr(category, "text_channels", [])
-                      if same_channel_name(c.name, COMMANDS_CHANNEL)), None)
-        if guide:
+        for extra in [c for c in getattr(category, "text_channels", [])
+                      if any(same_channel_name(c.name, n) for n in (COMMANDS_CHANNEL, STATUS_CHANNEL))]:
             try:
-                await guide.delete(reason="last world removed")
+                await extra.delete(reason="last world removed")
             except discord.HTTPException as e:
-                log.warning("Could not delete the commands channel in %s: %s", guild.id, e)
+                log.warning("Could not delete %s in %s: %s", extra.name, guild.id, e)
         for channel_id in (info.boosted_channel, info.admin_channel, info.admin_category):
             channel = guild.get_channel(int(channel_id)) if channel_id.isdigit() else None
             if channel:

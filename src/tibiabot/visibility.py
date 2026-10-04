@@ -15,6 +15,7 @@ import discord
 
 from tibiabot.commands_guide import COMMANDS_CHANNEL, same_channel_name
 from tibiabot.db.repos import DiscordInfo, WorldConfig
+from tibiabot.status import STATUS_CHANNEL
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +34,8 @@ def member_channels(guild: discord.Guild, info: DiscordInfo | None,
     if info:
         category = _by_id(guild, info.admin_category)
         found += [category, _by_id(guild, info.boosted_channel)]
-        found += [c for c in getattr(category, "text_channels", []) if same_channel_name(c.name, COMMANDS_CHANNEL)]
+        found += [c for c in getattr(category, "text_channels", [])
+                  if any(same_channel_name(c.name, n) for n in (COMMANDS_CHANNEL, STATUS_CHANNEL))]
     for world in worlds:
         found.append(_by_id(guild, world.category))
         found += [_by_id(guild, getattr(world, column)) for column in WORLD_CHANNEL_COLUMNS]
