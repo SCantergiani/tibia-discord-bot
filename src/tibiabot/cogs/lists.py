@@ -235,9 +235,10 @@ class ListForm(discord.ui.Modal):
         load = bot.lists.usage(interaction.guild_id)
         if adding and load.tracked >= bot.settings.tracked_warn_at:
             embed.add_field(name=":warning: That's a lot to track", inline=False, value=(
-                f"{load.text()}.\nOnly allies and enemies **online** cost anything: each gets a fast check, "
-                f"up to `FAST_POLL_MAX_PER_SECOND` requests a second. The more are online at once, the longer "
-                f"each waits for its turn and the more traffic the server sends."))
+                f"{load.text()}.\nOnly enemies and allies listed **by name** cost anything while **online**: "
+                f"each gets a fast check, up to `FAST_POLL_MAX_PER_SECOND` requests a second. The more are "
+                f"online at once, the longer each waits for its turn. Allies listed only through their guild "
+                f"are free."))
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     async def _info(self, bot: TibiaBot, interaction: discord.Interaction) -> None:

@@ -51,7 +51,9 @@ def status_embed(bot: TibiaBot, guild_id: int) -> discord.Embed:
                           else f"{label}: none online (target every {target:g}s)")
         embed.add_field(name="How often online allies/enemies are re-checked (last 10 min)", inline=False,
                         value=" · ".join(checks) + "\nEnemies always go first; anyone who just logged out "
-                                                   "(dying logs you out) jumps the queue.")
+                                                   "(dying logs you out) jumps the queue. Allies listed only "
+                                                   "through their guild aren't fast-checked: their deaths come "
+                                                   "from the public API, up to ~5 minutes late.")
     else:
         embed.add_field(name="Checks", inline=False,
                         value="Public TibiaData API: character pages can be up to 5 minutes old.")

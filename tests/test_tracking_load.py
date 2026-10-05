@@ -42,3 +42,30 @@ def test_sides_and_tracked_count_listed_players_and_listed_guild_members_once():
     lists.rosters["not listed"] = {"x"}
     assert lists.side_names(True) == {"bubble", "a", "b"} and lists.side_names(False) == {"friend"}
     assert lists.tracked() == {"bubble", "friend", "a", "b"}
+
+
+def test_guild_only_allies_are_counted_but_cost_nothing():
+    with_guild = estimate(400, enemies=6, allies=4, enemy_every=5, ally_every=10, cap=2, guild_allies=27)
+    without = estimate(400, enemies=6, allies=4, enemy_every=5, ally_every=10, cap=2)
+    assert with_guild.gb_per_month == without.gb_per_month
+    assert "31 allies online" in with_guild.text() and "27 listed only through their guild" in with_guild.text()
+
+
+def test_only_enemies_and_allies_listed_by_name_get_fast_checks():
+    from types import SimpleNamespace
+
+    from tibiabot.bot import TibiaBot
+    from tibiabot.lists.models import GuildLists, ListedGuild, ListedPlayer
+
+    lists = GuildLists()
+    lists.allied_players["friend"] = ListedPlayer("friend")
+    lists.allied_guilds["bratva opg"] = ListedGuild("bratva opg")
+    lists.rosters["bratva opg"] = {"friend", "member"}
+    lists.hunted_guilds["foes"] = ListedGuild("foes")
+    lists.rosters["foes"] = {"foe"}
+    bot = SimpleNamespace(lists=SimpleNamespace(of=lambda _: lists),
+                          state=SimpleNamespace(guilds_tracking=lambda _: [(1, None)]))
+    bot._listed_side = lambda *a: TibiaBot._listed_side(bot, *a)
+    fast = lambda name: TibiaBot._fast_side(bot, "Inabra", name, None)
+    assert (fast("Friend"), fast("Member"), fast("Foe"), fast("Random")) == ("ally", None, "enemy", None)
+    assert bot._listed_side("Inabra", "Member", None) == "ally"  # still an ally: listed and posted

@@ -55,8 +55,9 @@ Then `/init world: <your world>` in Discord.
 ### Why your own TibiaData
 
 The public TibiaData API serves character pages up to 5 minutes old. Your own instance scrapes tibia.com
-on every request, so the bot re-checks online enemies every 5 seconds and allies every 10 (enemies
-first when the rate can't cover everyone), and starts a full poll
+on every request, so the bot re-checks online enemies every 5 seconds and allies listed by name every 10
+(enemies first when the rate can't cover everyone; allies listed only through their guild go through
+the public API instead, so a big allied guild costs nothing), and starts a full poll
 the moment tibia.com refreshes its online list (once a minute). The request rate to tibia.com adapts:
 it starts at 2/s, climbs slowly while tibia.com answers cleanly, up to `FAST_POLL_CEILING` (4), and
 halves the moment it pushes back (403/429), one rate for every world since tibia.com counts per IP. Everything that needn't be fresh (guild

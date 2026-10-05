@@ -64,7 +64,7 @@ class TibiaBot(commands.Bot):
                 if self.rate else None)
         self.stats = Stats()
         self.pollers = PollerRegistry(self.tibiadata, self.sheets, settings.poll_interval,
-                                      self._listed_side if settings.fresh_tibiadata else None, fast,
+                                      self._fast_side if settings.fresh_tibiadata else None, fast,
                                       relevant=self._listed_side, wants_neutrals=self._wants_neutrals,
                                       stats=self.stats)
         self.lists = ListService(self)
@@ -89,6 +89,17 @@ class TibiaBot(commands.Bot):
                     or any(lower in lists.rosters.get(g, ()) for g in lists.allied_guilds):
                 side = "ally"
         return side
+
+    def _fast_side(self, world: str, name: str, sheet) -> str | None:
+        """Who gets fast checks from our own TibiaData: every enemy, and allies listed by
+        name. Allies only listed through their guild come from the public API (their
+        deaths can show up to ~5 minutes late), so a big allied guild costs nothing."""
+        side = self._listed_side(world, name, sheet)
+        if side != "ally":
+            return side
+        lower = name.lower()
+        return "ally" if any(lower in self.lists.of(guild_id).allied_players
+                             for guild_id, _ in self.state.guilds_tracking(world)) else None
 
     def _wants_neutrals(self, world: str) -> bool:
         """False only when every server tracking `world` hides neutral deaths and levels."""

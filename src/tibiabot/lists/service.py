@@ -62,10 +62,12 @@ class ListService:
         settings = self.bot.settings
         fast = settings.fresh_tibiadata and settings.fast_poll_seconds > 0
         rate = self.bot.rate
-        return tracking_load.estimate(len(enemies | allies), len(online & enemies), len(online & allies),
+        by_name = set(lists.allied_players) - enemies  # only these allies get fast checks
+        return tracking_load.estimate(len(enemies | allies), len(online & enemies), len(online & by_name),
                                       settings.fast_poll_seconds if fast else None,
                                       settings.ally_poll_seconds if fast else None,
-                                      (rate.rate if rate else settings.fast_poll_max_per_second) if fast else None)
+                                      (rate.rate if rate else settings.fast_poll_max_per_second) if fast else None,
+                                      guild_allies=len(online & (allies - by_name)))
 
     # --- lookups -------------------------------------------------------------
 
