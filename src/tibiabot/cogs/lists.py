@@ -152,7 +152,7 @@ class ListForm(discord.ui.Modal):
         self.panel, self.action, self.hunted = panel, action, hunted
         self.worlds = worlds
         self.kind = self.names = self.reason = self.tag = self.name = None
-        self.world = self.levels = self.deaths = self.detect = None
+        self.world = self.levels = self.deaths = None
 
         if action in (ADD, REMOVE):
             verb = "Add" if action == ADD else "Remove"
@@ -195,12 +195,6 @@ class ListForm(discord.ui.Modal):
                                            description=f"Level-ups by {side} players.", component=self.levels))
             self.add_item(discord.ui.Label(text=f"{side.capitalize()} deaths",
                                            description=f"Deaths of {side} players.", component=self.deaths))
-            if hunted:
-                self.detect = _select("activity", [("On", "on"), ("Off", "off")],
-                                      (only.detect_hunteds if only else None))
-                self.add_item(discord.ui.Label(text="Auto-detect enemies",
-                                               description="Add players who kill an ally to the hunted list.",
-                                               component=self.detect))
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         bot: TibiaBot = interaction.client  # type: ignore[assignment]
@@ -277,8 +271,6 @@ class ListForm(discord.ui.Modal):
         for select, column in ((self.levels, f"show_{side}_levels"), (self.deaths, f"show_{side}_deaths")):
             if (value := _picked(select)) is not None:
                 changes[column] = "true" if value == "show" else "false"
-        if (detect := _picked(self.detect)) is not None:
-            changes["detect_hunteds"] = detect
         changes = {col: v for col, v in changes.items() if getattr(world, col) != v}
         if not changes:
             await interaction.followup.send(embed=embeds.error("Nothing was changed."), ephemeral=True)
@@ -297,8 +289,7 @@ class ListForm(discord.ui.Modal):
 
 def _describe(column: str) -> str:
     return {"show_enemies_levels": "Enemy levels", "show_enemies_deaths": "Enemy deaths",
-            "show_allies_levels": "Ally levels", "show_allies_deaths": "Ally deaths",
-            "detect_hunteds": "Auto-detect enemies"}.get(column, column)
+            "show_allies_levels": "Ally levels", "show_allies_deaths": "Ally deaths"}.get(column, column)
 
 
 def _value(value: str) -> str:

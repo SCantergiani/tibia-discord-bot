@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS hunted_players (
   PRIMARY KEY (name)
 );
 
+-- Enemies used to be added automatically when they killed an ally; that is gone,
+-- and so are the players it added (no reason given + this text is only ever theirs).
+DELETE FROM hunted_players WHERE reason = 'false' AND reason_text = 'killed an allied player';
+
 CREATE TABLE IF NOT EXISTS hunted_guilds (
   name VARCHAR(255) NOT NULL,
   reason VARCHAR(255) NOT NULL,
@@ -102,6 +106,8 @@ CREATE TABLE IF NOT EXISTS worlds (
   activity_channel VARCHAR(255) DEFAULT '0',
   PRIMARY KEY (name)
 );
+-- Python-only addition: how many killers an ally's death lists to exiva (0 = all of them).
+ALTER TABLE worlds ADD COLUMN IF NOT EXISTS exiva_count INT NOT NULL DEFAULT 5;
 
 CREATE TABLE IF NOT EXISTS online_list_categories (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

@@ -115,6 +115,9 @@ class SettingsForm(discord.ui.Modal):
             self.option = _choice("option", _show_hide(only.exiva_list) if only else None)
             self.add_item(discord.ui.Label(text="Exiva list on deaths", component=self.option,
                                            description="When an ally is killed, list who to exiva."))
+            self.level = _number(only.exiva_count if only else None, "5")
+            self.add_item(discord.ui.Label(text="How many killers", component=self.level,
+                                           description="The highest levels first; 0 lists every killer."))
         elif action == CHANNEL_FILTER:
             self.levels = _number(only.levels_min if only else None, "8")
             self.deaths = _number(only.deaths_min if only else None, "8")
@@ -201,7 +204,7 @@ class SettingsForm(discord.ui.Modal):
             if not raw:
                 return None
             if not raw.isdigit():
-                return f"`{raw}` isn't a level - use a whole number."
+                return f"`{raw}` isn't a whole number."
             changes[column] = int(raw)
             return None
 
@@ -214,6 +217,7 @@ class SettingsForm(discord.ui.Modal):
             problem = number(self.level, "fullbless_level")
         elif self.action == EXIVA:
             choice(self.option, "exiva_list")
+            problem = number(self.level, "exiva_count")
         elif self.action == CHANNEL_FILTER:
             problem = number(self.levels, "levels_min") or number(self.deaths, "deaths_min")
         elif self.action == NEUTRAL:
@@ -318,7 +322,7 @@ class SettingsForm(discord.ui.Modal):
                                         ephemeral=True)
 
 
-LABELS = {"fullbless_level": "Fullbless level", "exiva_list": "Exiva list", "levels_min": "Levels minimum",
+LABELS = {"fullbless_level": "Fullbless level", "exiva_list": "Exiva list", "exiva_count": "Exiva killers", "levels_min": "Levels minimum",
           "deaths_min": "Deaths minimum", "show_neutral_levels": "Neutral levels",
           "show_neutral_deaths": "Neutral deaths", "online_enemies_min": "Online enemies minimum",
           "online_allies_min": "Online allies minimum", "online_neutrals_min": "Online others minimum"}

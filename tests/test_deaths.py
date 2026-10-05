@@ -68,14 +68,29 @@ def test_ally_killed_by_players_pings_pvp_and_lists_exivas_highest_first():
     assert post.side_label == "🟩 ALLY DIED"
     assert "Killed <t:" in post.description
     assert "**[Low Guy [100]](" in post.description and "**[High Guy [500]](" in post.description
-    exivas = [line for line in post.description.splitlines() if "exiva" in line]
+    exivas = [line for line in post.description.splitlines() if line.startswith("exiva ")]
     assert '"High Guy"' in exivas[0] and '"Low Guy"' in exivas[1]
-    assert post.exiva_killers == ["Low Guy", "High Guy"] and post.frag_killers == ["Low Guy", "High Guy"]
+    assert post.frag_killers == ["Low Guy", "High Guy"]
+
+
+def test_exiva_count_caps_the_list_and_zero_lists_everyone():
+    names = [f"Killer {i}" for i in range(8)]
+    levels = {n.lower(): 100 + i for i, n in enumerate(names)}
+
+    def exivas(count: int) -> list[str]:
+        world = WorldConfig("Inabra", "1", "0", "0", "2", "3", "4", "5", "6", "7", exiva_list="true",
+                            exiva_count=count)
+        post = deaths.build_death(victim(), died(*(player(n) for n in names)), lists(allied_players=["victim"]),
+                                  world, levels)
+        return [line for line in post.description.splitlines() if line.startswith("exiva ")]
+
+    assert exivas(3) == ['exiva "Killer 7"', 'exiva "Killer 6"', 'exiva "Killer 5"']
+    assert len(exivas(0)) == 8
 
 
 def test_no_exiva_list_when_the_setting_is_off():
     post = deaths.build_death(victim(), died(player("Killer")), lists(allied_players=["victim"]), WORLD, {})
-    assert "exiva" not in post.description and post.exiva_killers == []
+    assert "exiva" not in post.description
 
 
 def test_enemy_killed_by_players_asks_for_a_screenshot_not_a_ping():

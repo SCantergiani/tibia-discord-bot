@@ -53,6 +53,7 @@ class WorldConfig:
     levels_min: int = 8
     deaths_min: int = 8
     exiva_list: str = "false"
+    exiva_count: int = 5  # 0 = every killer
     online_combined: str = "true"
     online_allies_min: int = 0
     online_enemies_min: int = 0
@@ -121,6 +122,7 @@ async def save_world(pool: asyncpg.Pool, world: WorldConfig) -> None:
 SETTING_COLUMNS: dict[str, type] = {
     "show_neutral_levels": str, "show_neutral_deaths": str, "show_allies_levels": str, "show_allies_deaths": str,
     "show_enemies_levels": str, "show_enemies_deaths": str, "detect_hunteds": str, "exiva_list": str,
+    "exiva_count": int,
     "online_combined": str, "fullbless_level": int, "levels_min": int, "deaths_min": int,
     "online_allies_min": int, "online_enemies_min": int, "online_neutrals_min": int,
     # A role id (ping that role), "everyone" (ping @everyone) or "0" (no mass-log alert).

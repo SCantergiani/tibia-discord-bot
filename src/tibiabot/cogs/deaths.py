@@ -11,11 +11,9 @@ from typing import TYPE_CHECKING
 import discord
 from discord.ext import commands
 
-from tibiabot import adminlog, deaths, embeds, emojis, serversave
+from tibiabot import deaths, emojis, serversave
 from tibiabot.db.repos import NONE_ID, WorldConfig
-from tibiabot.lists import repo as list_repo
-from tibiabot.lists.embeds import char_url, pack
-from tibiabot.lists.models import ListedPlayer
+from tibiabot.lists.embeds import pack
 from tibiabot.poller import WorldSnapshot
 from tibiabot.tibiadata.client import TibiaDataError
 
@@ -29,7 +27,6 @@ KILLER_LOOKUP_CAP = 40
 KILLER_LOOKUP_CONCURRENCY = 6
 KILLER_LOOKUP_TIMEOUT = 10
 LEVEL_MESSAGE_LIMIT = 1900
-AUTO_HUNTED_REASON = "killed an allied player"
 
 
 def _channel(guild: discord.Guild, channel_id: str) -> discord.TextChannel | None:
@@ -146,8 +143,6 @@ class DeathsCog(commands.Cog):
             message = await self._send_death(guild, channel, world, post)
             if post.frag_killers and post.relation and (post.relation.ally or post.relation.enemy):
                 await self._record_frags(guild.id, world.name, post, message)
-            if post.exiva_killers and world.detect_hunteds == "on":
-                asyncio.create_task(self._auto_hunted(guild, world, post))
 
     async def _send_death(self, guild: discord.Guild, channel: discord.TextChannel, world: WorldConfig,
                           post: deaths.DeathPost) -> discord.Message | None:
@@ -166,7 +161,7 @@ class DeathsCog(commands.Cog):
             role = _role(guild, world.allypk_role)
             ping = role if role and self._can_ping(channel.id) else None
         elif post.poke == "fullbless":
-            embed.description += f"\n{emojis.get('exiva')} `exiva \"{post.victim}\"`"
+            embed.description += deaths.exiva_blocks([post.victim])
             role = _role(guild, world.fullbless_role)
             ping = role if role and post.level >= world.fullbless_level else None
         elif not (post.relation and (post.relation.ally or post.relation.enemy)):
@@ -188,33 +183,6 @@ class DeathsCog(commands.Cog):
             "death_message_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING",
             [(world, serversave.save_day(post.time), killer, post.victim, post.level, side, occurred,
               str(message.id) if message else "") for killer in post.frag_killers])
-
-    async def _auto_hunted(self, guild: discord.Guild, world: WorldConfig, post: deaths.DeathPost) -> None:
-        """An ally was killed: put any killer nobody has listed yet on the hunted list."""
-        lists = self.bot.lists.of(guild.id)
-        pool = await self.bot.db.guild(guild.id)
-        for name in dict.fromkeys(post.exiva_killers):
-            try:
-                killer = await self.bot.sheets.get(name)
-            except TibiaDataError:
-                continue
-            guild_name = (killer.guild_name or "").lower()
-            if guild_name and (guild_name in lists.allied_guilds or guild_name in lists.hunted_guilds):
-                continue
-            lower = killer.name.lower()
-            if lower in lists.allied_players or lower in lists.hunted_players:
-                continue
-            entry = ListedPlayer(lower, "false", AUTO_HUNTED_REASON, str(self.bot.user.id),
-                                 traded_when_added=killer.traded)
-            await list_repo.add_player(pool, True, entry)
-            lists.hunted_players[lower] = entry
-            await adminlog.post(
-                guild, self.bot.state.guild(guild.id).info,
-                f"{adminlog.user(self.bot.user.name)} added the player\n{deaths.vocation_emoji(killer.vocation)} "
-                f"**{killer.level}** — **[{killer.name}]({char_url(killer.name)})**\nto the hunted list for "
-                f"**{killer.world}**\n*(they killed the allied player **[{post.victim}]({char_url(post.victim)})**)*.",
-                f"{embeds.WIKI_FILE}Dark_Mage_Statue.gif", title=":robot: enemy automatically detected:",
-                automatic=True)
 
     # --- levels --------------------------------------------------------------
 

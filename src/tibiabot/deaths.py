@@ -206,7 +206,6 @@ class DeathPost:
     description: str
     poke: str  # "", "nemesis", "allypk", "fullbless", "screenshot"
     killer: str
-    exiva_killers: list[str] = field(default_factory=list)  # players to consider auto-adding to hunted
     frag_killers: list[str] = field(default_factory=list)
     relation: Relation | None = None
 
@@ -232,6 +231,13 @@ class DeathPost:
         if self.color == ALLY:
             return world.show_allies_deaths != "false"
         return True
+
+
+def exiva_blocks(names: list[str]) -> str:
+    """One code block per spell, so Discord gives each its own copy button."""
+    if not names:
+        return ""
+    return f"\n{emojis.get('exiva')}" + "".join(f"\n```\nexiva \"{n}\"\n```" for n in names)
 
 
 def build_death(character: Character, death: Death, lists: GuildLists, world: WorldConfig,
@@ -299,15 +305,18 @@ def build_death(character: Character, death: Death, lists: GuildLists, world: Wo
             article = killers.source_article(k.name) if not any(ch.isupper() for ch in k.name) else ""
             killer_parts.append(f"{article}{creatures.boss_emoji(k.name)}**{k.name}**")
 
-    exiva_names = killers.exiva_targets(exiva)
-    exiva_text = "".join(
-        f"\n{emojis.get('exiva') if i == 0 else emojis.get('indent')} `exiva \"{n}\"`" for i, n in enumerate(exiva_names))
+    exiva_names = killers.exiva_targets(exiva, world.exiva_count or len(exiva))
 
     header = f"{guild_text}{context} <t:{int(death.time.timestamp())}:R> at level {death.level}"
     if not killer_parts:
         thumbnail = creatures.SUICIDE_THUMBNAIL
         killer_parts = ["`suicide`"]
     room = DESCRIPTION_LIMIT - len(f"{header}\nby .")
+    # Exivas get at most half the room, dropping the lowest levels, so a long list
+    # never leaves a code block cut open.
+    while len(exiva_blocks(exiva_names)) > room // 2:
+        exiva_names.pop()
+    exiva_text = exiva_blocks(exiva_names)
     killer_text = killers.join_within(killer_parts, room - min(len(exiva_text), room // 2))
     text = f"{header}\nby {killer_text}.{exiva_text}"
     if len(text) > DESCRIPTION_LIMIT:
@@ -315,7 +324,7 @@ def build_death(character: Character, death: Death, lists: GuildLists, world: Wo
 
     return DeathPost(victim=name, vocation=character.vocation, level=death.level, time=death.time, color=color,
                      thumbnail=thumbnail, description=text, poke=poke, killer=last_killer,
-                     exiva_killers=[n for n, _ in exiva], frag_killers=list(dict.fromkeys(frags)), relation=rel)
+                     frag_killers=list(dict.fromkeys(frags)), relation=rel)
 
 
 def level_line(up: LevelUp, lists: GuildLists) -> tuple[str, Relation]:

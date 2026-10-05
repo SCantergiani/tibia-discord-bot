@@ -12,7 +12,7 @@ machine with your own copy of TibiaData.
 |---|---|
 | `/init world:` | Creates the world's channels (🤍 allies, ⚔️ enemies, 💀 deaths, 💖 levels, 📊 statistics) and ping roles |
 | `/hunted`, `/allies` | Enemy and ally lists: players and whole guilds, tags, bulk paste, auto clean-up of traded/deleted characters |
-| 💀 deaths | Every ally/enemy death within ~5–10 s, coloured by side, exiva lines, pings (Fullbless, PVP, Rare Boss), killers of allies auto-added to hunted |
+| 💀 deaths | Every ally/enemy death within ~5–10 s, coloured by side, exiva lines, pings (Fullbless, PVP, Rare Boss) |
 | 💖 levels | Level-ups, batched and silent |
 | 🤍 allies, ⚔️ enemies | Who of them is online, grouped by guild, ⚡ fresh enemy logins; each channel's name carries its count |
 | Mass log | Alert in ⚔️ enemies when 5+ enemies log in within 5 minutes, as soon as tibia.com shows it (`MASSLOG_*` in `.env`) |
