@@ -53,7 +53,7 @@ class Settings:
     ally_poll_seconds: float = 10        # allies are re-checked this often (enemies every fast_poll_seconds)
     masslog_minutes: float = 5    # a mass log: masslog_min_enemies enemies logging in within this
     masslog_min_enemies: int = 5
-    tracked_warn_at: int = 200  # warn when adds take a server past this many tracked characters
+    tracked_warn_at: int = 200  # warn when adds take a server past this many fast-checked characters
     emoji_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent / "data" / "emojis")
 
     @property

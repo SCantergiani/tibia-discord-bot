@@ -69,3 +69,7 @@ def test_only_enemies_and_allies_listed_by_name_get_fast_checks():
     fast = lambda name: TibiaBot._fast_side(bot, "Inabra", name, None)
     assert (fast("Friend"), fast("Member"), fast("Foe"), fast("Random")) == ("ally", None, "enemy", None)
     assert bot._listed_side("Inabra", "Member", None) == "ally"  # still an ally: listed and posted
+
+
+def test_fast_tracked_is_carried_for_the_warning():
+    assert estimate(350, 7, 6, 5, 10, 2, guild_allies=23, fast_tracked=40).fast_tracked == 40

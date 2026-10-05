@@ -233,7 +233,9 @@ class ListForm(discord.ui.Modal):
         await bot.lists.log_bulk(interaction.guild, self.hunted, adding, interaction.user.name, outcome, kind)
         embed = list_embeds.bulk(self.hunted, kind, adding, outcome, find_tag(tag) if adding else None)
         load = bot.lists.usage(interaction.guild_id)
-        if adding and load.tracked >= bot.settings.tracked_warn_at:
+        # Only what costs requests counts: allies listed just through their guild are free.
+        costly = load.tracked if load.fast_tracked is None else load.fast_tracked
+        if adding and costly >= bot.settings.tracked_warn_at:
             embed.add_field(name=":warning: That's a lot to track", inline=False, value=(
                 f"{load.text()}.\nOnly enemies and allies listed **by name** cost anything while **online**: "
                 f"each gets a fast check, up to `FAST_POLL_MAX_PER_SECOND` requests a second. The more are "

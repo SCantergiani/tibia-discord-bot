@@ -24,6 +24,7 @@ class Load:
     ally_every: float | None    # same for allies; None also when enemies use the whole rate
     gb_per_month: float | None  # at this many online all month
     guild_allies_online: int = 0  # allies listed only through their guild: public API, no fast checks
+    fast_tracked: int | None = None  # characters that get fast checks when online (enemies, allies by name)
 
     @property
     def online(self) -> int:
@@ -43,17 +44,17 @@ class Load:
 
 
 def estimate(tracked: int, enemies: int, allies: int, enemy_every: float | None, ally_every: float | None,
-             cap: float | None, guild_allies: int = 0) -> Load:
+             cap: float | None, guild_allies: int = 0, fast_tracked: int | None = None) -> Load:
     """`allies`: online allies that get fast checks; `guild_allies`: online allies that don't."""
     if not enemy_every or not ally_every or not cap:
-        return Load(tracked, enemies, allies + guild_allies, None, None, None)
+        return Load(tracked, enemies, allies + guild_allies, None, None, None, fast_tracked=fast_tracked)
     enemy_demand = enemies / enemy_every
     if enemy_demand >= cap:
         return Load(tracked, enemies, allies, enemies / cap, None if allies else ally_every,
-                    cap * GB_PER_MONTH_PER_REQUEST_PER_SECOND, guild_allies)
+                    cap * GB_PER_MONTH_PER_REQUEST_PER_SECOND, guild_allies, fast_tracked)
     left = cap - enemy_demand
     ally_demand = allies / ally_every
     ally_check = ally_every if ally_demand <= left else allies / left
     rate = enemy_demand + min(ally_demand, left)
     return Load(tracked, enemies, allies, enemy_every, ally_check, rate * GB_PER_MONTH_PER_REQUEST_PER_SECOND,
-                guild_allies)
+                guild_allies, fast_tracked)

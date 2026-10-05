@@ -67,7 +67,8 @@ class ListService:
                                       settings.fast_poll_seconds if fast else None,
                                       settings.ally_poll_seconds if fast else None,
                                       (rate.rate if rate else settings.fast_poll_max_per_second) if fast else None,
-                                      guild_allies=len(online & (allies - by_name)))
+                                      guild_allies=len(online & (allies - by_name)),
+                                      fast_tracked=len(enemies | by_name))
 
     # --- lookups -------------------------------------------------------------
 
